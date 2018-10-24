@@ -1,0 +1,2 @@
+# tradez
+Algorithmic trading app
