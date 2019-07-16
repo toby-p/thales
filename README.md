@@ -1,2 +1,3 @@
 # tradez
-Algorithmic trading app
+A library to help with developing algorithmic trading strategies.
+
