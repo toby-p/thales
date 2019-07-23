@@ -1,3 +1,5 @@
+import pandas as pd
+import requests
 import yaml
 
 from .nav import SYMBOL_PATH
@@ -45,3 +47,17 @@ class Tradez:
         with open(SYMBOL_PATH, "r") as stream:
             return yaml.safe_load(stream)["symbols"]
 
+    @staticmethod
+    def s_and_p_500():
+        """Pandas DataFrame of S&P500 constituents scraped from: https://datahub.io/core
+        """
+        url = "https://pkgstore.datahub.io/core/s-and-p-500-companies/" \
+              "constituents_json/data/64dd3e9582b936b0352fdd826ecd3c95/constituents_json.json"
+        r = requests.get(url)
+        assert r.status_code == 200, f"Unable to get S&P500 from url: {url}"
+        return pd.DataFrame(r.json())
+
+    @staticmethod
+    def add_s_and_p_500_to_symbols():
+        snp500 = sorted(Tradez.s_and_p_500()["Symbol"])
+        Tradez.add_symbol(*snp500)
