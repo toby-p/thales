@@ -4,3 +4,6 @@
 /**.ipynb
 /**.idea
 **/__pycache__/**
+
+tradez/package_data/credentials/*
+!tradez/package_data/credentials/README.txt
