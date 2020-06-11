@@ -6,9 +6,9 @@ import sys
 import time
 import warnings
 
-from tradez.query import load_data
-from tradez.utils import PASS, custom_format_warning, DIR_SCRAPED_DATA, FAIL, get_credentials, InvalidApiCall
-from tradez.symbols import get_symbols_master
+from thales.query import load_data
+from thales.utils import PASS, custom_format_warning, DIR_SCRAPED_DATA, FAIL, InvalidApiCall
+from thales.config import get_credentials, Symbols
 
 
 warnings.formatwarning = custom_format_warning
@@ -29,6 +29,7 @@ class AlphaVantage:
         https://www.alphavantage.co/support/#api-key
     """
     name = "alphavantage"
+    Symbols = Symbols(src=name)
     base_url = "https://www.alphavantage.co/"
     data_dir = os.path.join(DIR_SCRAPED_DATA, name)
     if not os.path.isdir(data_dir):
@@ -62,7 +63,7 @@ class AlphaVantage:
             https://www.alphavantage.co/documentation/
         """
         if not api_key:
-            api_key = get_credentials()[AlphaVantage.name]["key"]
+            api_key = get_credentials(AlphaVantage.name)["key"]
         symbol = "".join(symbol.split())  # Remove any whitespace.
         symbol = str.upper(symbol)
         query = AlphaVantage.construct_query(symbol, api_key, function, **kwargs)
@@ -78,7 +79,7 @@ class AlphaVantage:
             return r
 
     @staticmethod
-    def scrape(*symbol: str, api_key: str = None,
+    def scrape(*symbol: str, api_key: str = None, filename: str = "master",
                function: str = "TIME_SERIES_DAILY_ADJUSTED",
                rate_limit_pause: int = 10, **kwargs):
         """Iterate through the stocks passed as `symbol` and save the data in
@@ -88,17 +89,19 @@ class AlphaVantage:
             symbol (str): valid stock ticker symbols. If not passed then all
                 symbols stored in the package will be iterated.
             api_key (str): authentication key.
+            filename (str): internal symbol directory to get symbols from.
             function (str): type of data to collect - see:
                 https://www.alphavantage.co/documentation/
             rate_limit_pause (int): number of seconds to wait before trying
                 again when encountering rate limits.
         """
         if not api_key:
-            api_key = get_credentials()[AlphaVantage.name]["key"]
+            api_key = get_credentials(AlphaVantage.name)["key"]
         target = os.path.join(AlphaVantage.data_dir, function)
         if not os.path.isdir(target):
             os.mkdir(target)
-        symbol = get_symbols_master() if not symbol else symbol
+        symbol = AlphaVantage.Symbols.get(filename=filename) if not symbol else symbol
+        symbol = AlphaVantage.Symbols.prioritize_for_scraping(*symbol, additional_scrape_dirs=[function])
         if symbol:
             print(f"Scraping {AlphaVantage.name}:")
         rl_fail_msg = f"{FAIL} RateLimitExceeded: trying again every {rate_limit_pause:,} seconds\r"
@@ -130,7 +133,7 @@ class AlphaVantage:
                 n = len(df)
                 fp = os.path.join(target, f"{s}.csv")
                 if os.path.exists(fp):
-                    old = load_data(s, source=AlphaVantage.name, subdir=function)
+                    old = load_data(s, src=AlphaVantage.name, subdir=function)
                     df = df.append(old, sort=False)
                     df.drop_duplicates(keep="first", inplace=True)
                 df.to_csv(fp, encoding="utf-8", index=False)

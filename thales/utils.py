@@ -2,10 +2,8 @@
 
 import os
 import pandas as pd
-from pathlib import Path
 import requests
 import warnings
-import yaml
 
 
 def custom_format_warning(msg, *args, **kwargs):
@@ -16,41 +14,14 @@ def custom_format_warning(msg, *args, **kwargs):
 warnings.formatwarning = custom_format_warning
 
 
-# List of the valid sites/apis currently available to get data from:
-SOURCES = [
-    "alphavantage",
-    "test"
-]
-
 # Absolute directory paths:
 DIR = os.path.dirname(os.path.realpath(__file__))
 DIR_PACKAGE_DATA = os.path.join(DIR, "package_data")
 DIR_SCRAPED_DATA = os.path.join(DIR_PACKAGE_DATA, "scraped_data")
-CREDENTIALS_PATH = os.path.join(DIR_PACKAGE_DATA, "credentials", "credentials.yaml")
-if not os.path.exists(CREDENTIALS_PATH):
-    Path(CREDENTIALS_PATH).touch()
+DIR_SYMBOLS = os.path.join(DIR_PACKAGE_DATA, "symbols")
 
 # Unicode symbols for status messages:
 PASS, FAIL = "\u2714", "\u2718"
-
-
-# Functions for loading data:
-def get_credentials():
-    """Load all currently stored API/website credentials."""
-    with open(CREDENTIALS_PATH) as stream:
-        return yaml.safe_load(stream)
-
-
-def save_credentials(source: str, **credentials):
-    """Save new credentials for one of the API/website sources."""
-    assert source.lower() in SOURCES, f"Invalid data source: {source}"
-    saved = get_credentials()
-    if not saved:
-        saved = dict()
-    new = {source: credentials}
-    credentials = {**saved, **new}
-    with open(CREDENTIALS_PATH, "w") as stream:
-        yaml.safe_dump(credentials, stream)
 
 
 def sp500():
@@ -72,3 +43,11 @@ class InvalidApiCall(Exception):
 
     def __str__(self):
         return self.msg
+
+
+class InvalidSource(Exception):
+    def __init__(self, src):
+        self.src = src
+
+    def __str__(self):
+        return f"Invalid data source: {self.src}"
