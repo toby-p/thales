@@ -1,6 +1,6 @@
 *.json
 *.csv
-/.ipynb_checkpoints/**
+.ipynb_checkpoints
 /**.ipynb
 /**.idea
 **/__pycache__/**
