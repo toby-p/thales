@@ -79,15 +79,15 @@ class AlphaVantage:
             return r
 
     @staticmethod
-    def scrape(*symbol: str, api_key: str = None, filename: str = "master",
+    def scrape(*sym: str, api_key: str = None, filename: str = "master",
                function: str = "TIME_SERIES_DAILY_ADJUSTED",
                rate_limit_pause: int = 10, **kwargs):
         """Iterate through the stocks passed as `symbol` and save the data in
         CSV files in the `scraped_data` directory.
 
         Args:
-            symbol (str): valid stock ticker symbols. If not passed then all
-                symbols stored in the package will be iterated.
+            sym (str): valid stock ticker symbols. If not passed all symbols
+                stored in the given filename for this source will be iterated.
             api_key (str): authentication key.
             filename (str): internal symbol directory to get symbols from.
             function (str): type of data to collect - see:
@@ -100,13 +100,14 @@ class AlphaVantage:
         target = os.path.join(AlphaVantage.data_dir, function)
         if not os.path.isdir(target):
             os.mkdir(target)
-        symbol = AlphaVantage.Symbols.get(filename=filename) if not symbol else symbol
-        symbol = AlphaVantage.Symbols.prioritize_for_scraping(*symbol, additional_scrape_dirs=[function])
-        if symbol:
+        if not sym:
+            sym = AlphaVantage.Symbols.get(filename=filename)
+        sym = AlphaVantage.prioritize(*sym, function)
+        if sym:
             print(f"Scraping {AlphaVantage.name}:")
         rl_fail_msg = f"{FAIL} RateLimitExceeded: trying again every {rate_limit_pause:,} seconds\r"
         inv_fail_msg = f"{FAIL} InvalidApiCall: bad symbol or function ({function})\n"
-        for s in symbol:
+        for s in sym:
             r, n = None, 0
             msg = f"- {s}"
             while not r:
@@ -138,3 +139,26 @@ class AlphaVantage:
                     df.drop_duplicates(keep="first", inplace=True)
                 df.to_csv(fp, encoding="utf-8", index=False)
                 sys.stdout.write(f"\r{msg}: {PASS} {n:,} datapoints\n")
+
+    @staticmethod
+    def scraped(function: str = "TIME_SERIES_DAILY_ADJUSTED"):
+        """Pandas DataFrame of stock symbols and dates they were scraped."""
+        scrape_dir = os.path.join(AlphaVantage.data_dir, function)
+        symbol = [f.replace(".csv", "") for f in os.listdir(scrape_dir) if f.endswith(".csv")]
+        modified = [os.path.getmtime(os.path.join(scrape_dir, f"{f}.csv")) for f in symbol]
+        df = pd.DataFrame(data={"symbol": symbol, "modified": modified})
+        df["modified"] = pd.to_datetime(df["modified"], unit="s")
+        return df.sort_values(by=["modified"], ascending=False).reset_index(drop=True)
+
+    @staticmethod
+    def prioritize(*sym, function: str = "TIME_SERIES_DAILY_ADJUSTED"):
+        """Prioritize symbols for scraping in order:
+
+        1) Symbols which have never been scraped.
+        2) Symbols which have been scraped before, in from the least recently
+           scraped to the most.
+        """
+        scraped = AlphaVantage.scraped(function)
+        last = scraped.loc[(scraped["symbol"].isin(sym)), "symbol"].to_list()
+        first = [s for s in sym if s not in last]
+        return first + last
