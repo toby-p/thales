@@ -6,8 +6,9 @@ import sys
 import time
 import warnings
 
-from thales.query import load_data
-from thales.utils import PASS, custom_format_warning, DIR_SCRAPED_DATA, FAIL, InvalidApiCall
+from thales.dataset import DataSet
+from thales.config.exceptions import custom_format_warning, InvalidApiCall
+from thales.config.utils import PASS, DIR_SCRAPED_DATA, FAIL
 from thales.config import get_credentials, Symbols
 
 
@@ -134,7 +135,7 @@ class AlphaVantage:
                 n = len(df)
                 fp = os.path.join(target, f"{s}.csv")
                 if os.path.exists(fp):
-                    old = load_data(s, src=AlphaVantage.name, subdir=function)
+                    old = DataSet.load_by_symbol(s, src=AlphaVantage.name, subdir=function)
                     df = df.append(old, sort=False)
                     df.drop_duplicates(keep="first", inplace=True)
                 df.to_csv(fp, encoding="utf-8", index=False)

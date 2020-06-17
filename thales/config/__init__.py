@@ -1,17 +1,20 @@
 
 import os
+import pandas as pd
 from pathlib import Path
 import yaml
 
-from thales.utils import DIR_PACKAGE_DATA, DIR_SCRAPED_DATA, DIR_SYMBOLS, InvalidSource, sp500
+from thales.config.exceptions import InvalidSource, MissingRequiredColumns
+from thales.config.utils import DIR_PACKAGE_DATA, DIR_SCRAPED_DATA, DIR_SYMBOLS, sp500
 
 
 SOURCES_PATH = os.path.join(DIR_PACKAGE_DATA, "sources.yaml")
 DIR_CREDENTIALS = os.path.join(DIR_PACKAGE_DATA, "credentials")
 DIR_FIELDMAPS = os.path.join(DIR_PACKAGE_DATA, "fieldmaps")
-
-
-default_fieldmap = {
+PRICE_COLS = ("open", "high", "low", "close")
+DEFAULT_SRC = "alphavantage"
+DEFAULT_SUBDIR = "TIME_SERIES_DAILY_ADJUSTED"
+DEFAULT_FIELDMAP = {
     "datetime": "DATETIME",
     "symbol": "SYMBOL",
     "open": "OPEN",
@@ -22,16 +25,26 @@ default_fieldmap = {
 }
 
 
-def available_sources():
+def available_sources() -> list:
     """Get the list of currently registered data sources."""
     with open(SOURCES_PATH, "r") as stream:
         data = yaml.safe_load(stream)
         return list() if not data else data["sources"]
 
 
-def validate_source(src: str):
-    """Returns a data source only if it is valid else raises InvalidSource."""
-    if src in available_sources():
+SRCS = available_sources()
+
+
+def validate_source(src: str = None, valid_sources: list = None) -> str:
+    """Returns a data source only if it is in the valid list of sources, else
+    raises InvalidSource. If `src` isn't passed returns the package default
+    source (`alphavantage`). If `valid_sources` isn't passed it checks all
+    currently available sources."""
+    if not valid_sources:
+        valid_sources = SRCS
+    if not src:
+        src = DEFAULT_SRC
+    if src in valid_sources:
         return src
     else:
         raise InvalidSource(src)
@@ -51,7 +64,7 @@ def register_source(src: str):
     if not os.path.exists(fieldmap_fp):
         Path(fieldmap_fp).touch()
         with open(fieldmap_fp, "w") as stream:
-            yaml.safe_dump(default_fieldmap, stream)
+            yaml.safe_dump(DEFAULT_FIELDMAP, stream)
 
     credentials_fp = os.path.join(DIR_CREDENTIALS, f"{src}.yaml")
     if not os.path.exists(credentials_fp):
@@ -69,7 +82,7 @@ def register_source(src: str):
         Path(master_symbols).touch()
 
 
-def get_credentials(src: str):
+def get_credentials(src: str) -> dict:
     """Load stored API/website credentials for the specified source."""
     src = validate_source(src)
     credentials_fp = os.path.join(DIR_CREDENTIALS, f"{src}.yaml")
@@ -88,7 +101,10 @@ def save_credentials(src: str, **credentials):
         yaml.safe_dump(credentials, stream)
 
 
-def get_fieldmap(src: str):
+# A fieldmap maps the custom names of data fields returned by a data source
+# (e.g. closing price, date, open price, etc) to the standardized names used for
+# each field in the pacakage.
+def get_fieldmap(src: str) -> dict:
     """Load stored fieldmap for the specified API/website source."""
     src = validate_source(src)
     fieldmap_fp = os.path.join(DIR_FIELDMAPS, f"{src}.yaml")
@@ -107,7 +123,20 @@ def set_fieldmap(src: str, **fieldmap):
         yaml.safe_dump(fieldmap, stream)
 
 
+def apply_fieldmap(df: pd.DataFrame, src: str = None,
+                   error_missing: bool = True):
+    """Map default fieldnames onto a source's custom field names."""
+    fieldmap = get_fieldmap(src)
+    rename = {v: k for k, v in fieldmap.items() if v in df.columns}
+    if error_missing:
+        missing = set(rename) - set(df.columns)
+        if missing:
+            raise MissingRequiredColumns(*missing)
+    return df.rename(columns=rename)
 
+
+# The symbols class is used to set target lists of stock symbols associated to
+# each registered data source.
 class Symbols:
     """API for controlling the target symbols associated to a data source.
     """
@@ -119,7 +148,7 @@ class Symbols:
             self.fp = DIR_SYMBOLS
             self.scraped_fp = None  # There is no master directory of scraped data.
 
-    def get_path(self, filename: str = "master"):
+    def get_path(self, filename: str = "master") -> str:
         """Construct a filepath to a saved yaml symbols list."""
         fp = os.path.join(self.fp, f"{filename}.yaml")
         if os.path.exists(fp):
@@ -135,7 +164,7 @@ class Symbols:
         else:
             Path(fp).touch()
 
-    def get(self, filename: str = "master"):
+    def get(self, filename: str = "master") -> list:
         """Open a list of symbols associated to this instance's source."""
         fp = self.get_path(filename)
         with open(fp, "r") as stream:
