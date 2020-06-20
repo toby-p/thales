@@ -1,5 +1,6 @@
 """Common variables and utility functions required throughout the package."""
 
+from collections import Counter
 import os
 import pandas as pd
 import requests
@@ -25,3 +26,23 @@ def sp500():
     r = requests.get(url)
     assert r.status_code == 200, f"Unable to get S&P500 from url: {url}"
     return pd.DataFrame(r.json())
+
+
+def merge_dupe_cols(df: pd.DataFrame):
+    """If a DataFrame has somehow ended up with duplicate column names, merge
+    those columns into 1. Assumes that the columns don't contain multiple non-NA
+    values in a single row."""
+    df = df.copy()
+    column_count = Counter(df.columns)
+    dupe_cols = {k: v for k, v in column_count.items() if v > 1}.items()
+    for col, count in dupe_cols:
+        dupe_df = df[col].copy()
+        col_names = [col]
+        for i in range(count-1):
+            col_names.append(f"{col}_{i}")
+        dupe_df.columns = col_names
+        for c in col_names[1:]:
+            dupe_df[col] = dupe_df[col].fillna(dupe_df[c])
+        df.drop(columns=col, inplace=True)
+        df[col] = dupe_df[col]
+    return df
