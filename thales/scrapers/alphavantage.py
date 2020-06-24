@@ -8,7 +8,7 @@ import warnings
 
 from thales.dataset import DataSet
 from thales.config.exceptions import custom_format_warning, InvalidApiCall
-from thales.config.utils import PASS, DIR_SCRAPED_DATA, FAIL
+from thales.config.utils import PASS, DIR_SCRAPED_DATA, FAIL, now_str
 from thales.config import get_credentials, Symbols
 
 
@@ -117,6 +117,7 @@ class AlphaVantage:
             while not r:
                 sys.stdout.write(msg + " " * (len(rl_fail_msg) + 5))
                 try:
+                    request_time = now_str()
                     r = AlphaVantage.get(symbol=s, api_key=api_key, function=function, **kwargs)
                 except RateLimitExceeded:
                     sys.stdout.write(f"\r{msg}: {rl_fail_msg}")
@@ -135,6 +136,7 @@ class AlphaVantage:
                 df.rename(columns={"index": "DateTime"}, inplace=True)
                 df["DateTime"] = pd.to_datetime(df["DateTime"])
                 df["SYMBOL"] = s
+                df["request_time"] = request_time
                 n = len(df)
                 fp = os.path.join(target, f"{s}.csv")
                 if os.path.exists(fp):

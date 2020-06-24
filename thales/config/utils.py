@@ -1,8 +1,10 @@
 """Common variables and utility functions required throughout the package."""
 
 from collections import Counter
+import datetime
 import os
 import pandas as pd
+import pytz
 import requests
 
 
@@ -15,6 +17,8 @@ DIR_SYMBOLS = os.path.join(DIR_PACKAGE_DATA, "symbols")
 # Unicode symbols for status messages:
 PASS, FAIL = "\u2714", "\u2718"
 
+# String format for reading/saving datetimes:
+DATE_FORMAT = "%Y_%m_%d %H;%M;%S"
 
 def sp500():
     """Pandas DataFrame of S&P500 constituents scraped from:
@@ -46,3 +50,15 @@ def merge_dupe_cols(df: pd.DataFrame):
         df.drop(columns=col, inplace=True)
         df[col] = dupe_df[col]
     return df
+
+
+def now_str(fmt: str = DATE_FORMAT, timezone: str = "US/Eastern"):
+    """String representation of the current datetime.
+
+    Args:
+        fmt (str): string format for dates, see: http://strftime.org/
+        timezone (str): timezone, see options at: `pytz.all_timezones`.
+    """
+    utc_now = pytz.utc.localize(datetime.datetime.utcnow())
+    tz_now = utc_now.astimezone(pytz.timezone(timezone)).strftime(fmt)
+    return tz_now

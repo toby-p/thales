@@ -4,7 +4,9 @@ import pandas as pd
 import warnings
 
 from thales.config import apply_fieldmap, DEFAULT_SUBDIR, get_fieldmap, MasterSymbols, validate_source
-from thales.config.utils import DIR_SCRAPED_DATA, merge_dupe_cols
+from thales.config.utils import DATE_FORMAT, DIR_SCRAPED_DATA, merge_dupe_cols
+
+min_request_time = "2020_01_01 00;00;00"
 
 
 class DataSet:
@@ -49,11 +51,15 @@ class DataSet:
             df = apply_fieldmap(df.reset_index(drop=True), src=src)
         else:
             df = df.reset_index(drop=True)
-        return DataSet.clean_dataset(df, src=src, standard_fields=standard_fields)
+
+        df = DataSet.clean_dataset(df, src=src, standard_fields=standard_fields)
+        df = DataSet.dedupe_by_request_time(df, src=src, standard_fields=standard_fields)
+
+        return df.reset_index(drop=True)
 
     @staticmethod
     def clean_dataset(df: pd.DataFrame, src: str = None,
-                      standard_fields: bool = False):
+                      standard_fields: bool = True):
         """Clean a DataFrame loaded from CSV. If a mixture of stndard/custom
         fields have accidentally both been saved, it will convert all to the
         desired format as specified by the `standard_fields` arg. Also fixes
@@ -87,3 +93,24 @@ class DataSet:
             df[f_col] = df[f_col].astype(float)
 
         return df
+
+    @staticmethod
+    def dedupe_by_request_time(df: pd.DataFrame, src: str = None,
+                               standard_fields: bool = True):
+        """If a symbol has been scraped multiple times in a date period then
+        there may be duplicate rows of data for a single period, which will
+        cause errors in analysis. This deduplicates the rows, leaving the most
+        recently scraped data in place.
+        """
+        src = validate_source(src)
+        fieldmap = get_fieldmap(src)
+        if standard_fields:
+            sort_cols = ["datetime", "request_time", "volume"]
+        else:
+            sort_cols = ["datetime", "request_time", fieldmap["volume"]]
+        if "request_time" not in df.columns:
+            df["request_time"] = min_request_time
+        df["request_time"] = df["request_time"].fillna(min_request_time)
+        df["request_time"] = pd.to_datetime(df["request_time"], format=DATE_FORMAT)
+        df.sort_values(by=sort_cols, ascending=True, inplace=True)
+        return df.drop_duplicates(subset=["datetime"], keep="last")
