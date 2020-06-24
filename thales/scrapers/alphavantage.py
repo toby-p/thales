@@ -33,6 +33,7 @@ class AlphaVantage:
     Symbols = Symbols(src=name)
     base_url = "https://www.alphavantage.co/"
     data_dir = os.path.join(DIR_SCRAPED_DATA, name)
+    default_function = "TIME_SERIES_DAILY_ADJUSTED"
     if not os.path.isdir(data_dir):
         os.mkdir(data_dir)
 
@@ -42,22 +43,20 @@ class AlphaVantage:
                 "higher API call frequency."
     }
 
-    def __init__(self):
-        pass
-
     @staticmethod
-    def construct_query(symbol: str, api_key: str,
-                        function: str = "TIME_SERIES_DAILY_ADJUSTED", **kwargs):
+    def construct_query(symbol: str, api_key: str, function: str = None,
+                        **kwargs):
         default_kw = dict(interval="5min", outputsize="full", datatype="json")
         kw = {**default_kw, **kwargs}
+        if not function:
+            function = AlphaVantage.default_function
         query = f"{AlphaVantage.base_url}query?function={function}&symbol={symbol}&apikey={api_key}"
         for k, v in kw.items():
             query += f"&{k}={v}"
         return query
 
     @staticmethod
-    def get(symbol: str, api_key: str = None,
-            function: str = "TIME_SERIES_DAILY_ADJUSTED", **kwargs):
+    def get(symbol: str, api_key: str = None, function: str = None, **kwargs):
         """Submit a get request to the api. Valid parameters can be passed as
         kwargs and will be added to the API request. See documentation here:
 
@@ -65,6 +64,8 @@ class AlphaVantage:
         """
         if not api_key:
             api_key = get_credentials(AlphaVantage.name)["key"]
+        if not function:
+            function = AlphaVantage.default_function
         symbol = "".join(symbol.split())  # Remove any whitespace.
         symbol = str.upper(symbol)
         query = AlphaVantage.construct_query(symbol, api_key, function, **kwargs)
@@ -81,8 +82,7 @@ class AlphaVantage:
 
     @staticmethod
     def scrape(*sym: str, api_key: str = None, filename: str = "master",
-               function: str = "TIME_SERIES_DAILY_ADJUSTED",
-               rate_limit_pause: int = 10, **kwargs):
+               function: str = None, rate_limit_pause: int = 10, **kwargs):
         """Iterate through the stocks passed as `symbol` and save the data in
         CSV files in the `scraped_data` directory.
 
@@ -98,17 +98,20 @@ class AlphaVantage:
         """
         if not api_key:
             api_key = get_credentials(AlphaVantage.name)["key"]
+        if not function:
+            function = AlphaVantage.default_function
         target = os.path.join(AlphaVantage.data_dir, function)
         if not os.path.isdir(target):
             os.mkdir(target)
         if not sym:
             sym = AlphaVantage.Symbols.get(filename=filename)
-        sym = AlphaVantage.prioritize(*sym, function)
+        sym = AlphaVantage.prioritize(*sym, function=function)
         if sym:
             print(f"Scraping {AlphaVantage.name}:")
         rl_fail_msg = f"{FAIL} RateLimitExceeded: trying again every {rate_limit_pause:,} seconds\r"
         inv_fail_msg = f"{FAIL} InvalidApiCall: bad symbol or function ({function})\n"
         for s in sym:
+            s = str.upper(s)
             r, n = None, 0
             msg = f"- {s}"
             while not r:
@@ -135,15 +138,17 @@ class AlphaVantage:
                 n = len(df)
                 fp = os.path.join(target, f"{s}.csv")
                 if os.path.exists(fp):
-                    old = DataSet.load_by_symbol(s, src=AlphaVantage.name, subdir=function)
+                    old = DataSet.load_by_symbol(s, src=AlphaVantage.name, subdir=function, standard_fields=False)
                     df = df.append(old, sort=False)
                     df.drop_duplicates(keep="first", inplace=True)
                 df.to_csv(fp, encoding="utf-8", index=False)
                 sys.stdout.write(f"\r{msg}: {PASS} {n:,} datapoints\n")
 
     @staticmethod
-    def scraped(function: str = "TIME_SERIES_DAILY_ADJUSTED"):
+    def scraped(function: str = None):
         """Pandas DataFrame of stock symbols and dates they were scraped."""
+        if not function:
+            function = AlphaVantage.default_function
         scrape_dir = os.path.join(AlphaVantage.data_dir, function)
         symbol = [f.replace(".csv", "") for f in os.listdir(scrape_dir) if f.endswith(".csv")]
         modified = [os.path.getmtime(os.path.join(scrape_dir, f"{f}.csv")) for f in symbol]
@@ -152,14 +157,20 @@ class AlphaVantage:
         return df.sort_values(by=["modified"], ascending=False).reset_index(drop=True)
 
     @staticmethod
-    def prioritize(*sym, function: str = "TIME_SERIES_DAILY_ADJUSTED"):
+    def prioritize(*sym, function: str = None):
         """Prioritize symbols for scraping in order:
 
         1) Symbols which have never been scraped.
         2) Symbols which have been scraped before, in from the least recently
            scraped to the most.
         """
+        if not sym:
+            sym = AlphaVantage.Symbols.get(filename="master")
+        if not function:
+            function = AlphaVantage.default_function
         scraped = AlphaVantage.scraped(function)
-        last = scraped.loc[(scraped["symbol"].isin(sym)), "symbol"].to_list()
+        scraped = scraped.loc[(scraped["symbol"].isin(sym))]
+        scraped.sort_values(by=["modified"], ascending=True, inplace=True)
+        last = scraped["symbol"].to_list()
         first = [s for s in sym if s not in last]
         return first + last
