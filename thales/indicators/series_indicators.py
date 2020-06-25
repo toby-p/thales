@@ -19,7 +19,7 @@ def simple_moving_average(s: pd.Series, n: int = 5, validate: bool = True):
     """Calculate simple moving average over `n` number of intervals."""
     if validate:
         s = series_data_validation(s)
-    return s.rolling(window=n).mean()
+    return s.rolling(window=n).mean().rename(f"sma (n={n:.0f})")
 
 
 def exponential_moving_average(s: pd.Series, alpha: float = None,
@@ -32,10 +32,11 @@ def exponential_moving_average(s: pd.Series, alpha: float = None,
     >>>     ema.append(alpha*y_i + (1-alpha) * prev_s)
     """
     if validate:
-        s = series_data_validation(s, date_ascending=False)
+        s = series_data_validation(s, date_ascending=True)
     if not alpha and not span:
         span = len(s)
-    return s.ewm(alpha=alpha, span=span, adjust=False).mean()
+    label, value = ("alpha", alpha) if alpha else ("span", span)
+    return s.ewm(alpha=alpha, span=span, adjust=False).mean().rename(f"ema ({label}={value})")
 
 
 def weighted_moving_average(s: pd.Series, n: int = 5, validate: bool = True):
@@ -46,7 +47,7 @@ def weighted_moving_average(s: pd.Series, n: int = 5, validate: bool = True):
     weights = weights / weights.sum()
     data = convolve(s, weights, mode="valid", method="auto")
     index = s.index[n-1:]
-    return pd.Series(data, index=index)
+    return pd.Series(data, index=index).rename(f"wma (n={n})")
 
 
 def double_exponential_moving_average(s: pd.Series, alpha: float = None,
@@ -57,8 +58,12 @@ def double_exponential_moving_average(s: pd.Series, alpha: float = None,
     >>> ema_s = exponential_moving_average(s)
     >>> double_ema = (2 * ema_s) - exponential_moving_average(ema_s)
     """
+    if not alpha and not span:
+        span = len(s)
+    label, value = ("alpha", alpha) if alpha else ("span", span)
     ema_s = exponential_moving_average(s, alpha=alpha, span=span, validate=validate)
-    return (2 * ema_s) - exponential_moving_average(ema_s, alpha=alpha, span=span, validate=validate)
+    dema = (2 * ema_s) - exponential_moving_average(ema_s, alpha=alpha, span=span, validate=validate)
+    return dema.rename(f"dema ({label}={value})")
 
 
 def triple_exponential_moving_average(s: pd.Series, alpha: float = None,
@@ -70,15 +75,19 @@ def triple_exponential_moving_average(s: pd.Series, alpha: float = None,
     >>> ema_s = ema(s)
     >>> triple_ema = (3 * ema_s) - (3 * ema(ema_s)) + (ema(ema(ema_s)))
     """
+    if not alpha and not span:
+        span = len(s)
+    label, value = ("alpha", alpha) if alpha else ("span", span)
     ema, a, k, v = exponential_moving_average, alpha, span, validate
     ema_s = ema(s, a, k, v)
-    return (3 * ema_s) - (3 * ema(ema_s, a, k, v)) + ema(ema(ema_s, a, k, v), a, k, v)
+    tema = (3 * ema_s) - (3 * ema(ema_s, a, k, v)) + ema(ema(ema_s, a, k, v), a, k, v)
+    return tema.rename(f"tema ({label}={value})")
 
 
 def triangular_moving_average(s: pd.Series, n: int = 5, validate: bool = True):
     """Triangular moving average."""
     sma = simple_moving_average(s, n, validate).dropna()
-    return simple_moving_average(sma, n, validate)
+    return simple_moving_average(sma, n, validate).rename(f"trima (n={n})")
 
 
 def kaufman_efficiency_ratio(s: pd.Series, n: int = 10, validate: bool = True):
@@ -87,7 +96,7 @@ def kaufman_efficiency_ratio(s: pd.Series, n: int = 10, validate: bool = True):
         s = series_data_validation(s, date_ascending=True)
     trend = s.diff(n).abs()
     volatility = s.diff().abs().rolling(window=n).sum()
-    return trend / volatility
+    return (trend / volatility).rename(f"er (n={n})")
 
 
 def kaufman_adaptive_moving_average(s: pd.Series, er: int = 10,
@@ -97,7 +106,7 @@ def kaufman_adaptive_moving_average(s: pd.Series, er: int = 10,
     See: https://school.stockcharts.com/doku.php?id=technical_indicators:kaufman_s_adaptive_moving_average
 
     Args:
-        s (pd.Series): price data to calculate indicator on.
+        s (pd.Series): price data to calculate indicator from.
         er (int): Kaufman efficiency ratio window.
         ema_fast (int): number of periods for fast EMA constant.
         ema_slow (int): number of periods for slow EMA constant.
@@ -120,4 +129,29 @@ def kaufman_adaptive_moving_average(s: pd.Series, er: int = 10,
     for price, sc in zip(calc_df["price"], calc_df["smoothing_constant"]):
         prior_kama = kama[-1]
         kama.append(prior_kama + sc * (price - prior_kama))
-    return pd.Series(kama[1:], index=calc_df.index)
+    name = f"kama (er={er}, ema_fast={ema_fast}, ema_slow={ema_slow}, n={n})"
+    return pd.Series(kama[1:], index=calc_df.index, name=name)
+
+
+def moving_average_convergence_divergence(s: pd.Series, p_fast: int = 12,
+                                          p_slow: int = 26, signal: int = 9,
+                                          validate: bool = True) -> pd.DataFrame:
+    """Moving average convergence-divergence. See:
+        https://www.investopedia.com/articles/forex/05/macddiverge.asp
+
+    Args:
+        s (pd.Series): price data to calculate indicator from.
+        p_fast (int): number of periods in fast moving average.
+        p_slow (int): number of periods in slow moving average.
+        signal (int): number of periods in ema of macd.
+        validate (bool): if True, ensure `s` is in correct format.
+
+    """
+    if validate:
+        s = series_data_validation(s, date_ascending=True)
+    ema_fast = exponential_moving_average(s, span=p_fast, validate=False)
+    ema_slow = exponential_moving_average(s, span=p_slow, validate=False)
+    macd = (ema_fast - ema_slow).rename(f"macd (p_fast={p_fast}, p_slow={p_slow})")
+    signal_name = f"macd_signal (p_fast={p_fast}, p_slow={p_slow}, signal={signal})"
+    macd_signal = exponential_moving_average(macd, span=signal, validate=False).rename(signal_name)
+    return pd.concat([macd, macd_signal], axis=1)

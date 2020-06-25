@@ -4,6 +4,19 @@ multiple columns of price data (e.g. high & low) with a DateTime index."""
 import numpy as np
 import pandas as pd
 
+from thales.config import get_fieldmap
+from thales.dataset import DataSet
+
+
+def typical_price(df: pd.DataFrame, src: str = None,
+                  standard_fields: bool = True) -> pd.Series:
+    columns = [f"{col}_adjusted" for col in ("low", "high", "open")]
+    if any([c not in df for c in columns]):
+        df = DataSet.adjust_prices(df, src=src, standard_fields=standard_fields)
+    fieldmap = get_fieldmap(src)
+    dt = "datetime" if standard_fields else fieldmap["datetime"]
+    return pd.Series(df.set_index(dt)[columns].sum(axis=1) /3)
+
 
 def mesa_adaptive_moving_average(df: pd.DataFrame, high: str = "high",
                                  low: str = "low", fast_limit: float = 0.5,
