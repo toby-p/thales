@@ -18,7 +18,7 @@ def series_data_validation(s: pd.Series, date_ascending: bool = True):
 def simple_moving_average(s: pd.Series, n: int = 5, validate: bool = True):
     """Calculate simple moving average over `n` number of intervals."""
     if validate:
-        s = series_data_validation(s)
+        s = series_data_validation(s, date_ascending=True)
     return s.rolling(window=n).mean().rename(f"sma (n={n:.0f})")
 
 

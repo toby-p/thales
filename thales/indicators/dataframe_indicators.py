@@ -6,16 +6,46 @@ import pandas as pd
 
 from thales.config import get_fieldmap
 from thales.dataset import DataSet
+from thales.indicators.series_indicators import simple_moving_average
 
 
 def typical_price(df: pd.DataFrame, src: str = None,
                   standard_fields: bool = True) -> pd.Series:
     columns = [f"{col}_adjusted" for col in ("low", "high", "open")]
-    if any([c not in df for c in columns]):
+    if any([c not in df.columns for c in columns]):
         df = DataSet.adjust_prices(df, src=src, standard_fields=standard_fields)
     fieldmap = get_fieldmap(src)
     dt = "datetime" if standard_fields else fieldmap["datetime"]
     return pd.Series(df.set_index(dt)[columns].sum(axis=1) /3)
+
+
+def slow_stochastic_oscillator(df: pd.DataFrame, n: int = 14, src: str = None,
+                               standard_fields: bool = True) -> pd.Series:
+    """'Slow' Stochastic oscillator, also known as '%K' see:
+        https://www.investopedia.com/terms/s/stochasticoscillator.asp
+    """
+    columns = [f"{col}_adjusted" for col in ("low", "high", "open")]
+    if any([c not in df.columns for c in columns]):
+        df = DataSet.adjust_prices(df, src=src, standard_fields=standard_fields)
+    fieldmap = get_fieldmap(src)
+    dt = "datetime" if standard_fields else fieldmap["datetime"]
+    df = df.sort_values(by=dt, ascending=True)
+    low = df["low_adjusted"].rolling(n).min()
+    high = df["high_adjusted"].rolling(n).max()
+    k = (df["close"] - low) / (high - low)
+    k.index = df[dt]
+    return k.rename(f"stoch (n={n})")
+
+
+def fast_stochastic_oscillator(df: pd.DataFrame, n: int = 3, k_n: int = 14,
+                               src: str = None,
+                               standard_fields: bool = True) -> pd.Series:
+    """'Fast' Stochastic oscillator, also known as '%D' (just a simple moving
+     average of the slow stochastic_oscillator) see:
+        https://www.investopedia.com/terms/s/stochasticoscillator.asp
+    """
+    k = slow_stochastic_oscillator(df, n=k_n, src=src, standard_fields=standard_fields)
+    return simple_moving_average(k, n=n, validate=False).rename(f"stoch_f (n={n}, k_n={k_n})")
 
 
 def mesa_adaptive_moving_average(df: pd.DataFrame, high: str = "high",
