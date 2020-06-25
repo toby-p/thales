@@ -21,6 +21,7 @@ DEFAULT_FIELDMAP = {
     "high": "HIGH",
     "low": "LOW",
     "close": "CLOSE",
+    "raw_close": "RAW_CLOSE",
     "volume": "VOLUME"
 }
 
@@ -116,7 +117,7 @@ def get_fieldmap(src: str) -> dict:
 def set_fieldmap(src: str, **fieldmap):
     """Save new field mapping for the specified API/website sources."""
     saved = get_fieldmap(src)
-    assert all([k in saved for k in fieldmap]), "Invalid fieldmap keys"
+    assert all([k in DEFAULT_FIELDMAP for k in fieldmap]), "Invalid fieldmap keys"
     fieldmap = {**saved, **fieldmap}
     fieldmap_fp = os.path.join(DIR_FIELDMAPS, f"{src}.yaml")
     with open(fieldmap_fp, "w") as stream:

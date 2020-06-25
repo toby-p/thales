@@ -114,3 +114,20 @@ class DataSet:
         df["request_time"] = pd.to_datetime(df["request_time"], format=DATE_FORMAT)
         df.sort_values(by=sort_cols, ascending=True, inplace=True)
         return df.drop_duplicates(subset=["datetime"], keep="last")
+
+    @staticmethod
+    def adjust_prices(df: pd.DataFrame, src: str = None,
+                      standard_fields: bool = True):
+        """Add adjusted price columns for `low`, `open`, and `high` based on the
+        ratio between the close price and adjusted close price."""
+        src = validate_source(src)
+        fieldmap = get_fieldmap(src)
+        close = "close" if standard_fields else fieldmap["close"]
+        raw_close = "raw_close" if standard_fields else fieldmap["raw_close"]
+        adjustment_factor = df[close] / df[raw_close]
+        for col in ("low", "high", "open"):
+            col = col if standard_fields else fieldmap[col]
+            adj_col = f"{col}_adjusted"
+            df[adj_col] = df[col] * adjustment_factor
+        return df
+
