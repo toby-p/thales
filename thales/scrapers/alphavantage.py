@@ -140,7 +140,7 @@ class AlphaVantage:
                 n = len(df)
                 fp = os.path.join(target, f"{s}.csv")
                 if os.path.exists(fp):
-                    old = DataSet.load_by_symbol(s, src=AlphaVantage.name, subdir=function, standard_fields=False)
+                    old = DataSet.load_by_symbol(s, src=AlphaVantage.name, subdir=function)
                     df = df.append(old, sort=False)
                     df.drop_duplicates(keep="first", inplace=True)
                 df.to_csv(fp, encoding="utf-8", index=False)

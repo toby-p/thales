@@ -20,6 +20,7 @@ PASS, FAIL = "\u2714", "\u2718"
 # String format for reading/saving datetimes:
 DATE_FORMAT = "%Y_%m_%d %H;%M;%S"
 
+
 def sp500():
     """Pandas DataFrame of S&P500 constituents scraped from:
 

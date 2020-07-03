@@ -4,52 +4,44 @@ multiple columns of price data (e.g. high & low) with a DateTime index."""
 import numpy as np
 import pandas as pd
 
-from thales.config import get_fieldmap
-from thales.dataset import DataSet
 from thales.indicators.series_indicators import simple_moving_average
 
 
-def typical_price(df: pd.DataFrame, src: str = None,
-                  standard_fields: bool = True) -> pd.Series:
-    columns = [f"{col}_adjusted" for col in ("low", "high", "open")]
-    if any([c not in df.columns for c in columns]):
-        df = DataSet.adjust_prices(df, src=src, standard_fields=standard_fields)
-    fieldmap = get_fieldmap(src)
-    dt = "datetime" if standard_fields else fieldmap["datetime"]
-    return pd.Series(df.set_index(dt)[columns].sum(axis=1) /3)
+def typical_price(df: pd.DataFrame) -> pd.Series:
+    """Add the `typical price` average of low, high and open prices. Assumes
+    that prices have already been adjusted based on adjusted close."""
+    if isinstance(df.index, pd.DatetimeIndex):
+        return pd.Series(df[["low", "high", "open"]].sum(axis=1) / 3, name="typical")
+    else:
+        return pd.Series(df.set_index("datetime")[["low", "high", "open"]].sum(axis=1) / 3, name="typical")
 
 
-def slow_stochastic_oscillator(df: pd.DataFrame, n: int = 14, src: str = None,
-                               standard_fields: bool = True) -> pd.Series:
+def slow_stochastic_oscillator(df: pd.DataFrame, n: int = 14) -> pd.Series:
     """'Slow' Stochastic oscillator, also known as '%K' see:
         https://www.investopedia.com/terms/s/stochasticoscillator.asp
     """
-    columns = [f"{col}_adjusted" for col in ("low", "high", "open")]
-    if any([c not in df.columns for c in columns]):
-        df = DataSet.adjust_prices(df, src=src, standard_fields=standard_fields)
-    fieldmap = get_fieldmap(src)
-    dt = "datetime" if standard_fields else fieldmap["datetime"]
-    df = df.sort_values(by=dt, ascending=True)
-    low = df["low_adjusted"].rolling(n).min()
-    high = df["high_adjusted"].rolling(n).max()
+    if isinstance(df.index, pd.DatetimeIndex):
+        df = df.sort_index(ascending=True)
+    else:
+        df = df.sort_values(by="datetime", ascending=True)
+    low = df["low"].rolling(n).min()
+    high = df["high"].rolling(n).max()
     k = (df["close"] - low) / (high - low)
-    k.index = df[dt]
+    k.index = df.index if isinstance(df.index, pd.DatetimeIndex) else df["datetime"]
     return k.rename(f"stoch (n={n})")
 
 
-def fast_stochastic_oscillator(df: pd.DataFrame, n: int = 3, k_n: int = 14,
-                               src: str = None,
-                               standard_fields: bool = True) -> pd.Series:
+def fast_stochastic_oscillator(df: pd.DataFrame, n: int = 3,
+                               k_n: int = 14) -> pd.Series:
     """'Fast' Stochastic oscillator, also known as '%D' (just a simple moving
      average of the slow stochastic_oscillator) see:
         https://www.investopedia.com/terms/s/stochasticoscillator.asp
     """
-    k = slow_stochastic_oscillator(df, n=k_n, src=src, standard_fields=standard_fields)
+    k = slow_stochastic_oscillator(df, n=k_n)
     return simple_moving_average(k, n=n, validate=False).rename(f"stoch_f (n={n}, k_n={k_n})")
 
 
-def mesa_adaptive_moving_average(df: pd.DataFrame, high: str = "high",
-                                 low: str = "low", fast_limit: float = 0.5,
+def mesa_adaptive_moving_average(df: pd.DataFrame, fast_limit: float = 0.5,
                                  slow_limit: float = 0.05) -> pd.DataFrame:
     """MESA Adaptive Moving Average, see notes at:
         https://www.mesasoftware.com/papers/mama.pdf
@@ -60,7 +52,7 @@ def mesa_adaptive_moving_average(df: pd.DataFrame, high: str = "high",
     Adapted from:
         https://github.com/codersnotepad/techind/blob/master/techind/mesaAdaptiveMovingAverage.py
     """
-    high, low = df[high], df[low]
+    high, low = df["high"], df["low"]
 
     data = (high + low) / 2
     s = np.zeros(len(data))  # smooth
@@ -152,7 +144,7 @@ def mesa_adaptive_moving_average(df: pd.DataFrame, high: str = "high",
         # Alpha:
         alpha = fast_limit / delta_phase
         if alpha < slow_limit:
-            aplha = slow_limit
+            alpha = slow_limit
 
         # Add to output using EMA formula:
         mama[i] = alpha * data[i] + (1 - alpha) * mama[i - 1]
@@ -164,5 +156,5 @@ def mesa_adaptive_moving_average(df: pd.DataFrame, high: str = "high",
     #             mama[i] = np.nan
     #             fama[i] = np.nan
 
-    results = pd.DataFrame(data={"mama": mama, "fama": fama}, index=df["datetime"])
-    return results
+    ix = df.index if isinstance(df.index, pd.DatetimeIndex) else df["datetime"]
+    return pd.DataFrame(data={"mama": mama, "fama": fama}, index=ix)

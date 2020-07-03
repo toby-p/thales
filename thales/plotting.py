@@ -15,7 +15,7 @@ def plot_sym(*sym: str, min_date: str = None, max_date: str = None,
         max_date = parse(max_date)
     fig, ax = plt.subplots(figsize=(15, 5))
     for symbol in sym:
-        df = DataSet.load_by_symbol(symbol, src=src, subdir=subdir, standard_fields=True)
+        df = DataSet.load_by_symbol(symbol, src=src, subdir=subdir)
         if min_date:
             df = df.loc[(df["datetime"] >= min_date)]
         if max_date:

@@ -41,3 +41,11 @@ class MissingRequiredColumns(Exception):
 
     def __str__(self):
         return f"Missing required columns: {', '.join([str(c) for c in sorted(self.col)])}"
+
+
+class InvalidIndicator(Exception):
+    def __init__(self, indicator):
+        self.indicator = indicator
+
+    def __str__(self):
+        return f"Invalid indicator: {self.indicator}"
