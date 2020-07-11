@@ -155,3 +155,17 @@ def moving_average_convergence_divergence(s: pd.Series, p_fast: int = 12,
     signal_name = f"macd_signal (p_fast={p_fast}, p_slow={p_slow}, signal={signal})"
     macd_signal = exponential_moving_average(macd, span=signal, validate=False).rename(signal_name)
     return pd.concat([macd, macd_signal], axis=1)
+
+
+def relative_strength_index(s: pd.Series, n: int = 14, validate: bool = True):
+    """Relative strength index; see:
+        https://www.investopedia.com/terms/r/rsi.asp
+    """
+    if validate:
+        s = series_data_validation(s, date_ascending=True)
+    up, down = s.diff(1), s.diff(1)
+    up.loc[(up < 0)], down.loc[(down > 0)] = 0, 0
+    up_ewm = exponential_moving_average(up, span=n, validate=False)
+    down_ewm = exponential_moving_average(down.abs(), span=n, validate=False)
+    rsi = up_ewm / (up_ewm + down_ewm)
+    return rsi.rename(f"rsi (n={n})")

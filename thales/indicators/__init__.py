@@ -19,6 +19,7 @@ series_indicators = {
     "er": kaufman_efficiency_ratio,
     "kama": kaufman_adaptive_moving_average,
     "macd": moving_average_convergence_divergence,
+    "rsi": relative_strength_index,
 }
 
 
