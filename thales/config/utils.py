@@ -2,17 +2,24 @@
 
 from collections import Counter
 import datetime
-import os
 import pandas as pd
 import pytz
 import requests
 
 
-# Absolute directory paths:
-DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-DIR_PACKAGE_DATA = os.path.join(DIR, "package_data")
-DIR_SCRAPED_DATA = os.path.join(DIR_PACKAGE_DATA, "scraped_data")
-DIR_SYMBOLS = os.path.join(DIR_PACKAGE_DATA, "symbols")
+# Default values:
+PRICE_COLS = ("open", "high", "low", "close")
+DEFAULT_SUBDIR = "TIME_SERIES_DAILY_ADJUSTED"
+DEFAULT_FIELDMAP = {
+    "datetime": "DATETIME",
+    "symbol": "SYMBOL",
+    "open": "OPEN",
+    "high": "HIGH",
+    "low": "LOW",
+    "close": "CLOSE",
+    "raw_close": "RAW_CLOSE",
+    "volume": "VOLUME"
+}
 
 # Unicode symbols for status messages:
 PASS, FAIL = "\u2714", "\u2718"

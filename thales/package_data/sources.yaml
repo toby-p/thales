@@ -2,3 +2,4 @@ sources:
 - test_source
 - alphavantage
 - test_new
+- alpaca

@@ -3,8 +3,11 @@ import os
 import pandas as pd
 import warnings
 
-from thales.config import apply_fieldmap, DEFAULT_SUBDIR, get_fieldmap, MasterSymbols, validate_source
-from thales.config.utils import DATE_FORMAT, DIR_SCRAPED_DATA, merge_dupe_cols
+from thales.config.fieldmaps import apply_fieldmap, get_fieldmap
+from thales.config.paths import DIR_SCRAPED_DATA
+from thales.config.sources import validate_source
+from thales.config.symbols import MasterSymbols
+from thales.config.utils import DATE_FORMAT, DEFAULT_SUBDIR, merge_dupe_cols
 
 min_request_time = "2020_01_01 00;00;00"
 

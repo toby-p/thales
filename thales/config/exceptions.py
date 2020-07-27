@@ -12,11 +12,11 @@ warnings.formatwarning = custom_format_warning
 
 
 class InvalidApiCall(Exception):
-    def __init__(self, msg):
-        self.msg = msg
+    pass
 
-    def __str__(self):
-        return self.msg
+
+class RateLimitExceeded(Exception):
+    pass
 
 
 class InvalidSource(Exception):

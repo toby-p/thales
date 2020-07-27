@@ -1,0 +1,8 @@
+close: CLOSE
+datetime: DATETIME
+high: HIGH
+low: LOW
+open: OPEN
+raw_close: RAW_CLOSE
+symbol: SYMBOL
+volume: VOLUME

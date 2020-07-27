@@ -1,8 +1,8 @@
 
 import pandas as pd
 
-from thales.config import DEFAULT_SUBDIR
 from thales.config.exceptions import InvalidIndicator
+from thales.config.utils import DEFAULT_SUBDIR
 from thales.dataset import DataSet
 from thales.indicators import apply_df_indicator, apply_series_indicator, dataframe_indicators, series_indicators
 
