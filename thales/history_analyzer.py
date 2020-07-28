@@ -2,7 +2,7 @@
 import pandas as pd
 
 from thales.config.sources import validate_source
-from thales.dataset import DataSet
+from thales.data import DataSet
 
 
 class HistoryAnalyzer:

@@ -11,7 +11,7 @@ from thales.config.exceptions import custom_format_warning, InvalidApiCall
 from thales.config.paths import DIR_SCRAPED_DATA
 from thales.config.fx_pairs import FXPairs
 from thales.config.utils import PASS, FAIL, now_str
-from thales.dataset import DataSet
+from thales.data import DataSet
 
 
 warnings.formatwarning = custom_format_warning

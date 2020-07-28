@@ -1,5 +1,6 @@
 *.json
 *.csv
+!thales/data/toy_datasets/*
 .ipynb_checkpoints
 /**.ipynb
 /**.idea

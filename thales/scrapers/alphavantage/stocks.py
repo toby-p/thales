@@ -6,7 +6,7 @@ import sys
 import time
 import warnings
 
-from thales.dataset import DataSet
+from thales.data import DataSet
 from thales.config.credentials import get_credentials
 from thales.config.exceptions import custom_format_warning, InvalidApiCall, RateLimitExceeded
 from thales.config.paths import DIR_SCRAPED_DATA

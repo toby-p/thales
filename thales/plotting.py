@@ -4,7 +4,7 @@ from dateutil.parser import parse
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from thales.dataset import DataSet
+from thales.data import DataSet
 
 
 def plot_sym(*sym: str, min_date: str = None, max_date: str = None,
