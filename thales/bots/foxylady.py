@@ -8,8 +8,11 @@ import pandas as pd
 import random
 import time
 
+from thales.config.bots import validate_bot_name
 from thales.config.paths import DIR_TEMP
 from thales.data import load_toy_dataset
+from thales.positions import ManagePositions
+
 
 date_format = "%Y_%m_%d"
 milisecond_format = "%Y_%m_%d %H;%M;%S;%f"
@@ -82,8 +85,17 @@ class TestDataSource:
 
 class Handler:
 
-    def __init__(self):
-        pass
+    def __init__(self, bot_name: str = "FoXyLady", test: bool = True):
+        self.bot_name = validate_bot_name(bot_name)
+        self.test = test
+
+    @property
+    def open_positions(self):
+        return ManagePositions.list_open_positions(bot_name=self.bot_name, test=self.test)
+
+    @property
+    def closed_positions(self):
+        return ManagePositions.list_closed_positions(bot_name=self.bot_name, test=self.test)
 
     def __call__(self, data: dict):
         """Logic for what to do with a single piece of data from a feed."""

@@ -1,0 +1,1 @@
+Open trades will be saved here until they are closed.

@@ -1,0 +1,1 @@
+Trades will be saved here once they have closed.
