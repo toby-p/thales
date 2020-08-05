@@ -1,27 +1,14 @@
-"""Template for a very simple implementation of a trading bot."""
+"""Boilerplate for implementing a very simple trading bot based on the Observer
+pattern for event-handling. In this situation the data source can be thought of
+as the event, and handlers are called each time new data is produced.
+"""
 
 import datetime
 import json
 import os
-import random
 import time
 
 from thales.config.paths import DIR_TEMP
-
-
-class DataSource:
-
-    def __init__(self):
-        pass
-
-    def __call__(self):
-        return {
-            "timestamp": datetime.datetime.now(),
-            "open": random.random(),
-            "high": random.random(),
-            "low": random.random(),
-            "close": random.random(),
-        }
 
 
 class Handler:
@@ -29,31 +16,47 @@ class Handler:
     def __init__(self):
         pass
 
-    def __call__(self, data: dict):
-        """Logic for what to do with a single piece of data from a feed."""
-        timestamp_str = data["timestamp"].strftime(format="%Y_%m_%d %H;%M;%S;%f")
-        data["timestamp"] = timestamp_str
+    def __call__(self, **kwargs):
+        # ======================================================================
+        # Logic for what the handler does when called with some data goes here.
+        # In this case it just saves the data as a timestamped JSON file.
+        timestamp_str = kwargs["timestamp"].strftime(format="%Y_%m_%d %H;%M;%S;%f")
+        kwargs["timestamp"] = timestamp_str
         fp = os.path.join(DIR_TEMP, f"{timestamp_str}.json")
         with open(fp, "w") as f:
-            json.dump(data, f)
+            json.dump(kwargs, f)
+        # ======================================================================
+
+
+class DataSource:
+
+    def __init__(self, *handler: Handler):
+        self.handlers = list(handler)
+
+    def __call__(self):
+        # ======================================================================
+        # Logic to produce data goes here:
+        data = dict(timestamp=datetime.datetime.now(), open=None, high=None, low=None, close=None)
+        # ======================================================================
+
+        for handler in self.handlers:
+            handler(**data)
 
 
 class Bot:
 
-    def __init__(self, src: DataSource, handler: Handler, interval: float = 1):
+    def __init__(self, src: DataSource, interval: float = 15):
         self.src = src
-        self.handler = handler
         self.interval = interval
 
     def __call__(self):
         while True:
-            data = self.src()
-            self.handler(data)
+            self.src()
             time.sleep(self.interval)
 
 
 if __name__ == "__main__":
-    data_source = DataSource()
-    event_handler = Handler()
-    bot = Bot(data_source, event_handler)
+    event_handlers = [Handler()]
+    data_source = DataSource(*event_handlers)
+    bot = Bot(data_source)
     bot()

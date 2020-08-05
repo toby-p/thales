@@ -2,9 +2,12 @@
 
 from collections import Counter
 import datetime
+import os
 import pandas as pd
 import pytz
 import requests
+
+from thales.config.paths import DIR_TEMP
 
 
 # Default values:
@@ -70,3 +73,10 @@ def now_str(fmt: str = DATE_FORMAT, timezone: str = "US/Eastern"):
     utc_now = pytz.utc.localize(datetime.datetime.utcnow())
     tz_now = utc_now.astimezone(pytz.timezone(timezone)).strftime(fmt)
     return tz_now
+
+
+def empty_temp_dir():
+    """Delete all files in the temp directory (warning: can't be undone!)"""
+    files = [f for f in os.listdir(DIR_TEMP) if f != "README.txt"]
+    for f in files:
+        os.remove(os.path.join(DIR_TEMP, f))
