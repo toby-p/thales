@@ -1,0 +1,1 @@
+Data created by bots will be stored in this directory.

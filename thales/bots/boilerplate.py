@@ -8,10 +8,26 @@ import json
 import os
 import time
 
-from thales.config.paths import DIR_TEMP
+from thales.config.bots import register_bot, validate_bot_name
+from thales.config.paths import DIR_BOT_DATA
+
+
+# ==============================================================================
+# This variable needs to be a unique name which is a valid Python identifier:
+BOT_NAME = "test"
+# ==============================================================================
+try:
+    BOT_NAME = validate_bot_name(BOT_NAME)
+except AssertionError:
+    register_bot(BOT_NAME)
+BOT_DIR = os.path.join(DIR_BOT_DATA, BOT_NAME)
 
 
 class Handler:
+
+    data_dir = os.path.join(BOT_DIR, "handler_data")
+    if not os.path.isdir(data_dir):
+        os.mkdir(data_dir)
 
     def __init__(self):
         pass
@@ -19,10 +35,10 @@ class Handler:
     def __call__(self, **kwargs):
         # ======================================================================
         # Logic for what the handler does when called with some data goes here.
-        # In this case it just saves the data as a timestamped JSON file.
-        timestamp_str = kwargs["timestamp"].strftime(format="%Y_%m_%d %H;%M;%S;%f")
-        kwargs["timestamp"] = timestamp_str
-        fp = os.path.join(DIR_TEMP, f"{timestamp_str}.json")
+        # In this example it just saves the data as a timestamped JSON file.
+        ts = kwargs["timestamp"].strftime(format="%Y_%m_%d %H;%M;%S;%f")
+        kwargs["timestamp"] = ts
+        fp = os.path.join(self.data_dir, f"{ts}.json")
         with open(fp, "w") as f:
             json.dump(kwargs, f)
         # ======================================================================
