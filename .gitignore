@@ -5,9 +5,3 @@
 /**.ipynb
 /**.idea
 **/__pycache__/**
-
-thales/package_data/credentials/*
-!thales/package_data/credentials/README.txt
-
-thales/package_data/temp/*
-!thales/package_data/temp/README.txt

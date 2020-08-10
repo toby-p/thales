@@ -4,7 +4,7 @@ from keyword import iskeyword
 import os
 import yaml
 
-from thales.config.paths import DIR_BOT_DATA, DIR_PACKAGE_DATA
+from thales.config.paths import DIR_BOT_CODE, DIR_BOT_DATA, DIR_PACKAGE_DATA
 
 
 def list_bots() -> list:
@@ -16,14 +16,22 @@ def list_bots() -> list:
 
 
 def register_bot(bot: str):
-    """Register a new unique bot name."""
+    """Register a new unique bot name and create template directories."""
     def is_valid_variable_name(name: str):
         return name.isidentifier() and not iskeyword(name)
     assert is_valid_variable_name(bot), f"Name must be a valid Python variable."
     existing = list_bots()
     assert bot.lower() not in [s.lower() for s in existing], f"Bot name already registered: {bot}"
-    bot_dir = os.path.join(DIR_BOT_DATA, bot)
-    os.mkdir(bot_dir)
+    data_dir = os.path.join(DIR_BOT_DATA, bot)
+    os.mkdir(data_dir)
+    code_dir = os.path.join(DIR_BOT_CODE, bot)
+    os.mkdir(code_dir)
+    for sd in ("test", "production"):
+        subdir = os.path.join(code_dir, sd)
+        os.mkdir(subdir)
+        init = os.path.join(subdir, "__init__.py")
+        with open(init, "w") as f:
+            pass
     updated_list = sorted(existing + [bot])
     fp = os.path.join(DIR_PACKAGE_DATA, "bots.yaml")
     with open(fp, "w") as stream:

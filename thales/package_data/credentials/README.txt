@@ -1,1 +1,0 @@
-Personal credentials for websites/apis are stored here. WARNING: files are stored as plaintext!

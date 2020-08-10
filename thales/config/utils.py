@@ -28,7 +28,10 @@ DEFAULT_FIELDMAP = {
 PASS, FAIL = "\u2714", "\u2718"
 
 # String format for reading/saving datetimes:
-DATE_FORMAT = "%Y_%m_%d %H;%M;%S"
+DATE_FORMAT = "%Y_%m_%d"
+SECOND_FORMAT = "%Y_%m_%d %H;%M;%S"
+MILISECOND_FORMAT = "%Y_%m_%d %H;%M;%S;%f"
+MINUTE_FORMAT = "%Y_%m_%d %H;%M"
 
 
 def sp500():
@@ -80,3 +83,19 @@ def empty_temp_dir():
     files = [f for f in os.listdir(DIR_TEMP) if f != "README.txt"]
     for f in files:
         os.remove(os.path.join(DIR_TEMP, f))
+
+
+def date_col_from_datetime_col(df, date_col: str = "date",
+                               datetime_col: str = "datetime"):
+    """Create a date column from a datetime column in a pandas DataFrame
+    inplace."""
+    data = {"year": df[datetime_col].dt.year,
+            "month": df[datetime_col].dt.month,
+            "day": df[datetime_col].dt.day}
+    df[date_col] = pd.to_datetime(data)
+
+
+def get_file_modified_date(fp):
+    """Get the datetime stamp of when a file was last modified."""
+    unix_time = os.path.getmtime(fp)
+    return datetime.datetime.fromtimestamp(unix_time)

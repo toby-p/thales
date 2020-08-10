@@ -20,7 +20,8 @@ def save_toy_dataset(df: pd.DataFrame, name: str, **kwargs):
 
 
 def load_toy_dataset(name: str, **kwargs):
-    fp = os.path.join(DIR_TOY_DATA, f"{name}.csv")
+    name = f"{name}.csv" if "." not in name else name
+    fp = os.path.join(DIR_TOY_DATA, f"{name}")
     df = pd.read_csv(fp, encoding=kwargs.get("encoding", "utf-8"), **kwargs)
     for c in df.columns:
         if "date" in c:
