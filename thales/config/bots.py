@@ -1,15 +1,14 @@
 
 
 from keyword import iskeyword
-import os
 import yaml
 
-from thales.config.paths import DIR_BOT_CODE, DIR_BOT_DATA, DIR_PACKAGE_DATA
+from thales.config.paths import io_path, package_path
 
 
 def list_bots() -> list:
     """Get a list of all registered bot names."""
-    fp = os.path.join(DIR_PACKAGE_DATA, "bots.yaml")
+    fp = io_path(filename="bots.yaml")
     with open(fp) as stream:
         bots = yaml.safe_load(stream)
     return list() if not bots else sorted(bots)
@@ -22,18 +21,11 @@ def register_bot(bot: str):
     assert is_valid_variable_name(bot), f"Name must be a valid Python variable."
     existing = list_bots()
     assert bot.lower() not in [s.lower() for s in existing], f"Bot name already registered: {bot}"
-    data_dir = os.path.join(DIR_BOT_DATA, bot)
-    os.mkdir(data_dir)
-    code_dir = os.path.join(DIR_BOT_CODE, bot)
-    os.mkdir(code_dir)
-    for sd in ("test", "production"):
-        subdir = os.path.join(code_dir, sd)
-        os.mkdir(subdir)
-        init = os.path.join(subdir, "__init__.py")
-        with open(init, "w") as f:
-            pass
+    io_path("bot_data", bot)
+    package_path("bots", bot, "test", filename="__init__.py")
+    package_path("bots", bot, "production", filename="__init__.py")
     updated_list = sorted(existing + [bot])
-    fp = os.path.join(DIR_PACKAGE_DATA, "bots.yaml")
+    fp = io_path(filename="bots.yaml")
     with open(fp, "w") as stream:
         yaml.safe_dump(updated_list, stream)
 

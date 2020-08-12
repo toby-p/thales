@@ -4,7 +4,7 @@ import requests
 
 from thales.config.credentials import get_credentials
 from thales.config.exceptions import InvalidApiCall, RateLimitExceeded
-from thales.config.paths import DIR_SCRAPED_DATA
+from thales.config.paths import io_path
 from thales.scrapers.alphavantage.endpoints import endpoints
 
 
@@ -14,7 +14,7 @@ class AlphaVantageScraper:
     name = "alphavantage"
     endpoints = endpoints
     base_url = "https://www.alphavantage.co/"
-    data_dir = os.path.join(DIR_SCRAPED_DATA, name)
+    data_dir = io_path("scraped_data", name)
     if not os.path.isdir(data_dir):
         os.mkdir(data_dir)
     rate_limit_msg = {

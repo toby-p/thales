@@ -4,7 +4,7 @@ import pandas as pd
 import warnings
 
 from thales.config.fieldmaps import apply_fieldmap, get_fieldmap
-from thales.config.paths import DIR_SCRAPED_DATA, DIR_TOY_DATA
+from thales.config.paths import io_path, package_path
 from thales.config.sources import validate_source
 from thales.config.symbols import MasterSymbols
 from thales.config.utils import DATE_FORMAT, DEFAULT_SUBDIR, merge_dupe_cols
@@ -14,14 +14,14 @@ min_request_time = "2020_01_01 00;00;00"
 
 def save_toy_dataset(df: pd.DataFrame, name: str, **kwargs):
     """Save a CSV file to the toy_datasets directory."""
-    fp = os.path.join(DIR_TOY_DATA, f"{name}.csv")
+    fp = package_path("data", "toy_datasets", filename=f"{name}.csv")
     df.to_csv(fp, encoding=kwargs.get("encoding", "utf-8"), index=kwargs.get("index", False))
     print(f"Dataset saved: {fp}")
 
 
 def load_toy_dataset(name: str, **kwargs):
     name = f"{name}.csv" if "." not in name else name
-    fp = os.path.join(DIR_TOY_DATA, f"{name}")
+    fp = package_path("data", "toy_datasets", filename=f"{name}")
     df = pd.read_csv(fp, encoding=kwargs.get("encoding", "utf-8"), **kwargs)
     for c in df.columns:
         if "date" in c:
@@ -42,7 +42,7 @@ class DataSet:
         if not subdir:
             subdir = DEFAULT_SUBDIR
 
-        directory = os.path.join(DIR_SCRAPED_DATA, validate_source(src), subdir)
+        directory = io_path("scraped_data", validate_source(src), subdir)
         assert os.path.isdir(directory), f"No data directory: {directory}"
         csvs = os.listdir(directory)
 

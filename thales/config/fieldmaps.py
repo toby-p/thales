@@ -7,7 +7,7 @@ import pandas as pd
 import yaml
 
 from thales.config.exceptions import MissingRequiredColumns
-from thales.config.paths import DIR_FIELDMAPS
+from thales.config.paths import io_path
 from thales.config.sources import validate_source
 from thales.config.utils import DEFAULT_FIELDMAP
 
@@ -15,7 +15,7 @@ from thales.config.utils import DEFAULT_FIELDMAP
 def get_fieldmap(src: str) -> dict:
     """Load stored fieldmap for the specified API/website source."""
     src = validate_source(src)
-    fieldmap_fp = os.path.join(DIR_FIELDMAPS, f"{src}.yaml")
+    fieldmap_fp = io_path("fieldmaps", filename="{src}.yaml")
     with open(fieldmap_fp) as stream:
         fieldmap_fp = yaml.safe_load(stream)
     return fieldmap_fp
@@ -26,7 +26,7 @@ def set_fieldmap(src: str, **fieldmap):
     saved = get_fieldmap(src)
     assert all([k in DEFAULT_FIELDMAP for k in fieldmap]), "Invalid fieldmap keys"
     fieldmap = {**saved, **fieldmap}
-    fieldmap_fp = os.path.join(DIR_FIELDMAPS, f"{src}.yaml")
+    fieldmap_fp = io_path("fieldmaps", filename=f"{src}.yaml")
     with open(fieldmap_fp, "w") as stream:
         yaml.safe_dump(fieldmap, stream)
 

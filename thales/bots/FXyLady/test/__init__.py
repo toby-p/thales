@@ -7,8 +7,9 @@ import pandas as pd
 import random
 
 from thales.config.bots import register_bot, validate_bot_name
-from thales.config.paths import DIR_BOT_DATA
+from thales.config.paths import io_path
 from thales.config.utils import DATE_FORMAT, MILISECOND_FORMAT, MINUTE_FORMAT
+from thales.data import load_toy_dataset
 from thales.positions import ManagePositions, Position
 
 
@@ -22,62 +23,87 @@ try:
     BOT_NAME = validate_bot_name(BOT_NAME)
 except AssertionError:
     register_bot(BOT_NAME)
-BOT_DIR = os.path.join(DIR_BOT_DATA, BOT_NAME)
+BOT_DIR = io_path("bot_data", BOT_NAME)
 DATA_DIR = os.path.join(BOT_DIR, "TEST" if TEST else "PRODUCTION")
 
 
 # DATA SOURCE:
 # ==============================================================================
-class TestGetData:
-    data_dir = os.path.join(DATA_DIR, "67_data")
-    data_format = {
-        "timestamp": datetime.datetime.now(),
-        "open": random.random(),
-        "high": random.random(),
-        "low": random.random(),
-        "close": random.random(),
-    }
+class TestDataGenerator:
 
     def __init__(self):
-        self._data_67 = dict()
-        self._year = 0
-        self._year_df = pd.DataFrame()
+        self.year = 0
+        self.year_df = pd.DataFrame()
+        date_fp = io_path("bot_data", "FXyLady", "test", filename="dates.csv")
+        dates = pd.read_csv(date_fp, encoding="utf-8")
+        dates["dt"] = pd.to_datetime(dates["dates"], format="%Y_%m_%d")
+        self.dates = dates["dt"].sort_values().reset_index(drop=True)
+        self._67_data = dict()
 
     def get_67(self, dt: datetime.datetime):
         date_str = dt.strftime(DATE_FORMAT)
         try:
-            return self._data_67[date_str]
+            return self._67_data[date_str]
         except KeyError:
-            year_dir = os.path.join(DATA_DIR, "67_data", str(dt.year))
-            if not os.path.isdir(year_dir):
-                os.mkdir(year_dir)
-            contents = [f for f in os.listdir(year_dir) if f.endswith(".json")]
-            if not contents:
-                self._make_67_json(dt.year)
-            fp = os.path.join(year_dir, f"{date_str}.json")
+            fp = io_path("bot_data", "FXyLady", "test", "67_data", f"{date_str}.json")
             if os.path.exists(fp):
                 with open(fp, "r") as f:
-                    date_data = json.load(f)
-                    self._data_67[date_str] = date_data
-                    return date_data
+                    data = json.load(f)
+                    self._67_data[date_str] = data
+                    return data
             else:
                 return dict()
 
-    def get_minute(self, dt: datetime.datetime):
-        year = dt.year
-        if not year == self._year:
-            self._load_year(year)
-        minute_str = dt.strftime(MINUTE_FORMAT)
-        row = self._year_df.loc[self._year_df["date_str"] == minute_str]
-        if len(row) == 1:
-            d = row.iloc[0].to_dict()
-            d["timestamp"] = d["date_str"]
-            d = {k: v for k, v in d.items() if k in self.data_format}
-            return d
-        elif len(row) == 0:
-            return dict()
-        else:
-            raise IndexError(f"Multiple rows returned for single minute: {minute_str}")
+    def _load_year(self, year: int):
+        if self.year != year:
+            fn = f"GBPJPY_{year}_1m.csv"
+            self.year_df = load_toy_dataset(fn).sort_values(by=["datetime"])
+            self.year = year
+
+    def previous_date(self, dt: datetime.date):
+        dt_ix = self.dates[self.dates == dt].index
+        try:
+            return self.dates.loc[dt_ix - 1].iloc[0].date()
+        except IndexError:
+            raise IndexError(f"previous_date failed on date: {dt}")
+
+    def generator(self, start: datetime.datetime, n_days: int = 100):
+
+        # Initial parameters:
+        day_count = 0
+        self._load_year(start.year)
+        ix = self.year_df.loc[self.year_df["datetime"] >= start].index[0]
+        current_date = start.date()
+
+        while day_count < n_days:
+
+            # Get the minute's data:
+            row = self.year_df.loc[ix]
+            row_date = row["datetime"].date()
+            data_minute = row.to_dict()
+
+            # If the row is from a new day, increase the counter:
+            if row_date > current_date:
+                current_date = row_date
+                day_count += 1
+
+            # Get the 6-7am data. If the hour is less than 6am, need the
+            # previous day's numbers:
+            date_need_67 = datetime.datetime(row_date.year, row_date.month, row_date.day)
+            if row["datetime"].hour < 6:
+                date_need_67 = self.previous_date(date_need_67)
+            data_67 = self.get_67(date_need_67)
+
+            # Increment the index position:
+            ix += 1
+            # If we've reached the end of the year_df, load the next year:
+            if ix > self.year_df.index.max():
+                self._load_year(self.year + 1)
+                ix = 0
+
+            if data_67 and data_minute:
+                yield {"67": data_67, "minute": data_minute}
+        return
 
 
 # EVENT HANDLERS:

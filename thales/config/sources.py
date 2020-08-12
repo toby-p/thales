@@ -4,11 +4,11 @@ from pathlib import Path
 import yaml
 
 from thales.config.exceptions import InvalidSource
-from thales.config.paths import DIR_CREDENTIALS, DIR_FIELDMAPS, DIR_FX, DIR_PACKAGE_DATA, DIR_SCRAPED_DATA, DIR_SYMBOLS
+from thales.config.paths import io_path
 from thales.config.utils import DEFAULT_FIELDMAP
 
 
-SOURCES_PATH = os.path.join(DIR_PACKAGE_DATA, "sources.yaml")
+SOURCES_PATH = io_path(filename="sources.yaml")
 DEFAULT_SRC = "alphavantage"
 
 
@@ -47,30 +47,24 @@ def register_source(src: str):
     with open(SOURCES_PATH, "w") as stream:
         yaml.safe_dump({"sources": sources}, stream)
 
-    fieldmap_fp = os.path.join(DIR_FIELDMAPS, f"{src}.yaml")
+    fieldmap_fp = io_path("fieldmaps", filename=f"{src}.yaml", make_file=False)
     if not os.path.exists(fieldmap_fp):
         Path(fieldmap_fp).touch()
         with open(fieldmap_fp, "w") as stream:
             yaml.safe_dump(DEFAULT_FIELDMAP, stream)
 
-    credentials_fp = os.path.join(DIR_CREDENTIALS, f"{src}.yaml")
-    if not os.path.exists(credentials_fp):
-        Path(credentials_fp).touch()
+    _ = io_path("credentials", filename=f"{src}.yaml", make_file=True)
 
-    scrape_dir = os.path.join(DIR_SCRAPED_DATA, src)
+    scrape_dir = io_path("scraped_data", src)
     if not os.path.isdir(scrape_dir):
         os.mkdir(scrape_dir)
 
-    symbols_dir = os.path.join(DIR_SYMBOLS, src)
+    symbols_dir = io_path("stocks", src)
     if not os.path.isdir(symbols_dir):
         os.mkdir(symbols_dir)
-    master_symbols = os.path.join(symbols_dir, "master.yaml")
-    if not os.path.exists(master_symbols):
-        Path(master_symbols).touch()
+    _ = io_path("stocks", src, filename="master.yaml", make_file=True)
 
-    fx_dir = os.path.join(DIR_FX, src)
+    fx_dir = io_path("fx_pairs", src)
     if not os.path.isdir(fx_dir):
         os.mkdir(fx_dir)
-    master_fx = os.path.join(fx_dir, "master.yaml")
-    if not os.path.exists(master_fx):
-        Path(master_fx).touch()
+    _ = io_path("fx_pairs", src, filename="master.yaml", make_file=True)

@@ -7,7 +7,7 @@ import pandas as pd
 import pytz
 import requests
 
-from thales.config.paths import DIR_TEMP
+from thales.config.paths import io_path
 
 
 # Default values:
@@ -80,9 +80,9 @@ def now_str(fmt: str = DATE_FORMAT, timezone: str = "US/Eastern"):
 
 def empty_temp_dir():
     """Delete all files in the temp directory (warning: can't be undone!)"""
-    files = [f for f in os.listdir(DIR_TEMP) if f != "README.txt"]
+    files = [f for f in os.listdir(io_path("temp")) if f != "README.txt"]
     for f in files:
-        os.remove(os.path.join(DIR_TEMP, f))
+        os.remove(io_path("temp", filename=f))
 
 
 def date_col_from_datetime_col(df, date_col: str = "date",

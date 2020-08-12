@@ -9,7 +9,7 @@ import warnings
 from thales.data import DataSet
 from thales.config.credentials import get_credentials
 from thales.config.exceptions import custom_format_warning, InvalidApiCall, RateLimitExceeded
-from thales.config.paths import DIR_SCRAPED_DATA
+from thales.config.paths import io_path
 from thales.config.utils import PASS, FAIL, now_str
 from thales.config.symbols import Symbols
 
@@ -26,7 +26,7 @@ class AlphaVantageStocks:
     name = "alphavantage"
     Symbols = Symbols(src=name)
     base_url = "https://www.alphavantage.co/"
-    data_dir = os.path.join(DIR_SCRAPED_DATA, name)
+    data_dir = io_path("scraped_data", name)
     default_function = "TIME_SERIES_DAILY_ADJUSTED"
     if not os.path.isdir(data_dir):
         os.mkdir(data_dir)

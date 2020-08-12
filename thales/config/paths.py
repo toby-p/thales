@@ -1,20 +1,57 @@
 """Paths to directories and files that can be imported."""
 
 import os
+import pandas as pd
+from pathlib import Path
 
 
 DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-DIR_PACKAGE_DATA = os.path.join(DIR, "package_data")
-DIR_SCRAPED_DATA = os.path.join(DIR_PACKAGE_DATA, "scraped_data")
-DIR_SYMBOLS = os.path.join(DIR_PACKAGE_DATA, "symbols")
-DIR_CREDENTIALS = os.path.join(DIR_PACKAGE_DATA, "credentials")
-DIR_FIELDMAPS = os.path.join(DIR_PACKAGE_DATA, "fieldmaps")
-DIR_FX = os.path.join(DIR_PACKAGE_DATA, "fx")
-DIR_TOY_DATA = os.path.join(DIR, "data", "toy_datasets")
-DIR_TEMP = os.path.join(DIR_PACKAGE_DATA, "temp")
-DIR_POSITIONS_OPEN = os.path.join(DIR_PACKAGE_DATA, "positions", "open")
-DIR_POSITIONS_CLOSED = os.path.join(DIR_PACKAGE_DATA, "positions", "closed")
-DIR_BOT_DATA = os.path.join(DIR_PACKAGE_DATA, "bot_data")
-DIR_BOT_CODE = os.path.join(DIR, "bots")
-DIR_NOTIFICATIONS = os.path.join(DIR_PACKAGE_DATA, "notifications")
-DIR_LOGS = os.path.join(DIR_PACKAGE_DATA, "logs")
+IO_DIR = os.path.join(os.path.expanduser("~"), ".thales_IO")
+
+
+def make_dirs(*subdir, basedir: str = None):
+    if not basedir:
+        basedir = DIR
+    for sd in subdir:
+        assert os.path.isdir(basedir), f"basedir doesn't exist: {basedir}"
+        basedir = os.path.join(basedir, sd)
+        if not os.path.isdir(basedir):
+            os.mkdir(basedir)
+    return basedir
+
+
+def make_empty_file(fp):
+    if os.path.exists(fp):
+        return fp
+    filename = os.path.basename(fp)
+    filetype = filename.split(".")[-1]
+    if filetype in ("yaml", "txt", "py"):
+        Path(fp).touch()
+    elif filetype == "csv":
+        df = pd.DataFrame()
+        df.to_csv(fp, encoding="utf-8", index=False)
+    else:
+        raise NotImplementedError(f"Can't create files with type: {filetype}")
+    return fp
+
+
+def _construct_path(*subdir, filename: str = None, make_subdirs: bool = True,
+                    make_file: bool = True, basedir: str = None):
+    path = os.path.join(basedir, *subdir)
+    if make_subdirs and not os.path.isdir(path):
+        make_dirs(*subdir, basedir=basedir)
+    if filename:
+        path = os.path.join(path, filename)
+        if make_file:
+            path = make_empty_file(path)
+    return path
+
+
+def io_path(*subdir, filename: str = None, make_subdirs: bool = False,
+            make_file: bool = False):
+    return _construct_path(*subdir, filename=filename, make_subdirs=make_subdirs, make_file=make_file, basedir=IO_DIR)
+
+
+def package_path(*subdir, filename: str = None, make_subdirs: bool = False,
+                 make_file: bool = False):
+    return _construct_path(*subdir, filename=filename, make_subdirs=make_subdirs, make_file=make_file, basedir=DIR)

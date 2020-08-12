@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import yaml
 
-from thales.config.paths import DIR_SCRAPED_DATA, DIR_FX
+from thales.config.paths import io_path
 from thales.config.sources import validate_source
 
 
@@ -14,10 +14,10 @@ class FXPairs:
     source."""
     def __init__(self, src: str = None):
         if src:
-            self.fp = os.path.join(DIR_FX, validate_source(src))
-            self.scraped_fp = os.path.join(DIR_SCRAPED_DATA, src)
+            self.fp = io_path("fx_pairs", validate_source(src))
+            self.scraped_fp = io_path("scraped_data", validate_source(src))
         else:
-            self.fp = DIR_FX
+            self.fp = io_path("fx_pairs")
             self.scraped_fp = None  # There is no master directory of scraped data.
 
     def get_path(self, filename: str = "master") -> str:

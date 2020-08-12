@@ -9,7 +9,7 @@ import os
 import time
 
 from thales.config.bots import register_bot, validate_bot_name
-from thales.config.paths import DIR_BOT_DATA
+from thales.config.paths import io_path
 
 
 # ==============================================================================
@@ -20,7 +20,7 @@ try:
     BOT_NAME = validate_bot_name(BOT_NAME)
 except AssertionError:
     register_bot(BOT_NAME)
-BOT_DIR = os.path.join(DIR_BOT_DATA, BOT_NAME)
+BOT_DIR = io_path("bot_data", BOT_NAME)
 
 
 class Handler:

@@ -8,7 +8,7 @@ import warnings
 
 from thales.config.credentials import get_credentials
 from thales.config.exceptions import custom_format_warning, InvalidApiCall
-from thales.config.paths import DIR_SCRAPED_DATA
+from thales.config.paths import io_path
 from thales.config.fx_pairs import FXPairs
 from thales.config.utils import PASS, FAIL, now_str
 from thales.data import DataSet
@@ -30,7 +30,7 @@ class AlphaVantageFX:
     name = "alphavantage"
     FXPairs = FXPairs(src=name)
     base_url = "https://www.alphavantage.co/"
-    data_dir = os.path.join(DIR_SCRAPED_DATA, name)
+    data_dir = io_path("scraped_data", name)
     default_function = "FX_INTRADAY"
     if not os.path.isdir(data_dir):
         os.mkdir(data_dir)
