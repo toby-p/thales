@@ -49,14 +49,14 @@ class Position:
 
     def save(self):
         if self.is_open:
-            fp = io_path("positions", "open", filename="{self.name}.json")
+            fp = io_path("positions", "open", filename=f"{self.name}.json")
             with open(fp, "w") as f:
                 json.dump(repr(self), f)
         else:
-            fp = io_path("positions", "closed", filename="{self.name}.json")
+            fp = io_path("positions", "closed", filename=f"{self.name}.json")
             with open(fp, "w") as f:
                 json.dump(repr(self), f)
-            open_fp = io_path("positions", "open", filename="{self.name}.json")
+            open_fp = io_path("positions", "open", filename=f"{self.name}.json")
             if os.path.exists(open_fp):
                 os.remove(open_fp)
 
@@ -109,3 +109,17 @@ class ManagePositions:
             files = [f for f in os.listdir(directory) if (f.startswith("test__")) and (f.endswith(".json"))]
             for f in files:
                 os.remove(os.path.join(directory, f))
+
+    @staticmethod
+    def bot_performance(bot_name: str, test: bool = True):
+        closed_positions = ManagePositions.list_closed_positions(bot_name=bot_name, test=test)
+        deltas, sell_buy_ratios = list(), list()
+        for p in closed_positions:
+            position = ManagePositions.get_position(p)
+            deltas.append(position.delta)
+            sell_buy_ratios.append(position.sell_buy_ratio)
+        return {
+            "number_trades": len(closed_positions),
+            "delta": sum(deltas),
+            "sell_buy_ratio": sum(sell_buy_ratios) / len(sell_buy_ratios)
+        }
