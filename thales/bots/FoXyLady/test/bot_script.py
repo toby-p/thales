@@ -22,4 +22,4 @@ if __name__ == "__main__":
     data_source = TestDataGenerator(test_name=test_name)
     bot = TestBot(src=data_source, handler=event_handler, start=test_start, n_days=test_n_days)
     bot()
-    ManagePositions.bot_performance(bot_name=BOT_NAME, test_name=test_name, test=True, save=True)
+    ManagePositions.calc_bot_performance(bot_name=BOT_NAME, test_name=test_name, test=True, save=True)

@@ -113,12 +113,12 @@ class TestDataGenerator:
 # ==============================================================================
 class TestTradeHandler:
 
-    __slots__ = ["dates_traded", "buy_signal", "sell_signal", "stop_signal"]
+    __slots__ = ["dates_traded", "entry_signal", "sell_signal", "stop_signal"]
 
-    def __init__(self, open_signal: float = 0.2, sell_signal: float = 0.3,
+    def __init__(self, entry_signal: float = 0.2, sell_signal: float = 0.3,
                  stop_signal: float = -0.3):
         self.dates_traded = list()
-        self.buy_signal = open_signal
+        self.entry_signal = entry_signal
         self.sell_signal = sell_signal
         self.stop_signal = stop_signal
 
@@ -142,12 +142,12 @@ class TestTradeHandler:
                           f"buy_price={open_p.buy_price}, sell_price={open_p.sell_price})")
                     self.dates_traded = sorted(set(self.dates_traded) | {date})
         else:
-            buy_decision = (high > mean_67 + self.buy_signal) and \
+            buy_decision = (high > mean_67 + self.entry_signal) and \
                            (close < mean_67 + self.sell_signal) and \
                            (date not in self.dates_traded)
             if buy_decision:
-                metadata = dict(buy_signal=self.buy_signal, sell_signal=self.sell_signal, stop_signal=self.stop_signal,
-                                mean_67=mean_67, high=high, low=low, close=close)
+                metadata = dict(buy_signal=self.entry_signal, sell_signal=self.sell_signal,
+                                stop_signal=self.stop_signal, mean_67=mean_67, high=high, low=low, close=close)
                 p = Position(open_timestamp=timestamp, buy_price=close, amount=100, test=TEST, bot_name=BOT_NAME,
                              test_name=data["test_name"], **metadata)
                 print(f"Opened position {p.uuid} (amount={p.amount}, buy_price={p.buy_price})")

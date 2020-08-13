@@ -121,6 +121,12 @@ class ManagePositions:
         return _list_positions(bot_name=bot_name, test=test, test_name=test_name, closed=True)
 
     @staticmethod
+    def list_tests(bot_name: str):
+        """Get a list of names of backtests performed for a specific bot."""
+        directory = io_path("back_tests", validate_bot_name(bot_name))
+        return [f[:-5] for f in os.listdir(directory) if f.endswith(".json")]
+
+    @staticmethod
     def get_position(position_name: str):
         uuid = position_name.split("__")[-1]
         for directory in (io_path("positions", "closed"), io_path("positions", "open")):
@@ -153,8 +159,8 @@ class ManagePositions:
                 os.remove(os.path.join(directory, f))
 
     @staticmethod
-    def bot_performance(bot_name: str, test: bool = True, test_name: str = None,
-                        save: bool = False):
+    def calc_bot_performance(bot_name: str, test: bool = True, test_name: str = None,
+                             save: bool = False):
         closed_positions = ManagePositions.list_closed_positions(bot_name=bot_name, test=test, test_name=test_name)
         if not closed_positions:
             return {"number_trades": 0}
@@ -164,11 +170,15 @@ class ManagePositions:
             deltas.append(position.delta)
             sell_buy_ratios.append(position.sell_buy_ratio)
             hold_durations.append(position.hold_duration)
+        wins = sum([1 if d > 0 else 0 for d in deltas])
+        number_trades = len(closed_positions)
         results = {
-            "number_trades": len(closed_positions),
+            "number_trades": number_trades,
             "delta": sum(deltas),
-            "sell_buy_ratio": sum(sell_buy_ratios) / len(sell_buy_ratios),
-            "average_hold_duration": sum(hold_durations, datetime.timedelta()) / len(closed_positions),
+            "sell_buy_ratio": sum(sell_buy_ratios) / number_trades,
+            "average_hold_duration": sum(hold_durations, datetime.timedelta()) / number_trades,
+            "number_wins": wins,
+            "win_pc": wins / number_trades,
         }
         if save:
             assert bot_name and test_name, "Both bot_name and test_name must be passed to save results."
@@ -177,3 +187,16 @@ class ManagePositions:
                 json.dump({k: str(v) for k, v in results.items()}, f)
             print(f"Saved results for bot {bot_name} - test name {test_name}")
         return results
+
+    @staticmethod
+    def open_bot_test_performance(bot_name: str, test_name: str):
+        """Open the results of a back test."""  # TODO: change data types of dict returned.
+        bot_name = validate_bot_name(bot_name)
+        test_name = f"{test_name}.json" if not test_name.endswith(".json") else test_name
+        fp = io_path("back_tests", validate_bot_name(bot_name), test_name)
+        if os.path.exists(fp):
+            with open(fp, "r") as f:
+                return json.load(f)  # json.loads(json.load(f))
+        else:
+            assert test_name[:-5] in ManagePositions.list_tests(bot_name)
+            return ManagePositions.calc_bot_performance(bot_name, test=True, test_name=test_name, save=True)
