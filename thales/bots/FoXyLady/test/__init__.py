@@ -26,7 +26,7 @@ except AssertionError:
 # ==============================================================================
 class TestDataGenerator:
 
-    def __init__(self):
+    def __init__(self, test_name: str):
         self.year = 0
         self.year_df = pd.DataFrame()
         date_fp = io_path("bot_data", "FXyLady", "test", filename="dates.csv")
@@ -34,6 +34,7 @@ class TestDataGenerator:
         dates["dt"] = pd.to_datetime(dates["dates"], format="%Y_%m_%d")
         self.dates = dates["dt"].sort_values().reset_index(drop=True)
         self._67_data = dict()
+        self._test_name = test_name
 
     def get_67(self, dt: datetime.datetime):
         date_str = dt.strftime(DATE_FORMAT)
@@ -101,7 +102,7 @@ class TestDataGenerator:
                 ix = 0
 
             if data_67 and data_minute:
-                yield {"67": data_67, "minute": data_minute}
+                yield {"67": data_67, "minute": data_minute, "test_name": self._test_name}
         return
 
 
@@ -134,7 +135,8 @@ class TestTradeHandler:
         else:
             buy_signal = (high > mean_67 + 0.2) and (close < mean_67 + 0.3) and (date not in self.dates_traded)
             if buy_signal:
-                p = Position(open_timestamp=timestamp, buy_price=close, amount=100, test=TEST, bot_name=BOT_NAME)
+                p = Position(open_timestamp=timestamp, buy_price=close, amount=100, test=TEST, bot_name=BOT_NAME,
+                             test_name=data["test_name"])
                 print(f"Opened position {p.uuid} (amount={p.amount}, buy_price={p.buy_price})")
                 self.dates_traded = sorted(set(self.dates_traded) | {date})
 
@@ -153,4 +155,8 @@ class TestBot:
     def __call__(self):
         generator = self.src.generator(start=self.start, n_days=self.n_days)
         while True:
-            self.handler(**next(generator))
+            try:
+                self.handler(**next(generator))
+            except StopIteration:
+                print("Test complete")
+                break

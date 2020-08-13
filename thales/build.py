@@ -32,6 +32,7 @@ def create_structure(structure: object, base_dir=None):
 
 io_structure = {
     ".thales_IO": [
+        "back_tests",
         "bot_data",
         "credentials",
         "fieldmaps",

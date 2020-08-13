@@ -21,9 +21,10 @@ def register_bot(bot: str):
     assert is_valid_variable_name(bot), f"Name must be a valid Python variable."
     existing = list_bots()
     assert bot.lower() not in [s.lower() for s in existing], f"Bot name already registered: {bot}"
-    io_path("bot_data", bot)
-    package_path("bots", bot, "test", filename="__init__.py")
-    package_path("bots", bot, "production", filename="__init__.py")
+    io_path("bot_data", bot, make_subdirs=True)
+    io_path("back_tests", bot, make_subdirs=True)
+    package_path("bots", bot, "test", filename="__init__.py", make_subdirs=True, make_file=True)
+    package_path("bots", bot, "production", filename="__init__.py", make_subdirs=True, make_file=True)
     updated_list = sorted(existing + [bot])
     fp = io_path(filename="bots.yaml")
     with open(fp, "w") as stream:
