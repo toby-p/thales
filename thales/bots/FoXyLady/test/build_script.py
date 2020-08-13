@@ -56,7 +56,8 @@ def make_67_json(year: int):
 
 
 years_parsed = {int(f[:4]) for f in os.listdir(DIR_67) if f.endswith(".json")}
-csv_years = {int(f[7:11]) for f in os.listdir(package_path("data", "toy_datasets")) if f.startswith("GBPJPY_") and f.endswith("_1m.csv")}
+csv_years = {int(f[7:11]) for f in os.listdir(package_path("data", "toy_datasets")) if
+             f.startswith("GBPJPY_") and f.endswith("_1m.csv")}
 if not REBUILD:
     csv_years = csv_years - years_parsed
 for y in csv_years:
