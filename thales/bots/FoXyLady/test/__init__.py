@@ -9,7 +9,7 @@ from thales.config.bots import register_bot, validate_bot_name
 from thales.config.paths import io_path
 from thales.config.utils import DATE_FORMAT, MILISECOND_FORMAT
 from thales.data import load_toy_dataset
-from thales.positions import ManagePositions, Position
+from thales.positions import _Position, Long, ManagePositions, Short
 
 
 # BOT SETUP
@@ -116,7 +116,7 @@ class TestTradeHandler:
     __slots__ = ["dates_traded", "entry_signal", "sell_signal", "stop_signal"]
 
     def __init__(self, entry_signal: float = 0.2, sell_signal: float = 0.3,
-                 stop_signal: float = -0.3):
+                 stop_signal: float = -0.2):
         self.dates_traded = list()
         self.entry_signal = entry_signal
         self.sell_signal = sell_signal
@@ -133,24 +133,42 @@ class TestTradeHandler:
         date = dt.date()
         if open_positions:
             for p in open_positions:
-                open_p = ManagePositions.get_position(p)
-                stop_decision = low < (open_p.buy_price + self.stop_signal)
-                sell_decision = high > (open_p.buy_price + self.sell_signal)
-                if stop_decision or sell_decision:
-                    open_p.sell(timestamp=timestamp, price=close)
-                    print(f"Closed position {open_p.uuid} (amount={open_p.amount}, "
-                          f"buy_price={open_p.buy_price}, sell_price={open_p.sell_price})")
-                    self.dates_traded = sorted(set(self.dates_traded) | {date})
-        else:
-            buy_decision = (high > mean_67 + self.entry_signal) and \
-                           (close < mean_67 + self.sell_signal) and \
-                           (date not in self.dates_traded)
-            if buy_decision:
+                pos: _Position = ManagePositions.get_position(p)
+                ptype: str = pos.ptype
+                if ptype == "Long":
+                    stop_decision = low < (pos.buy_price + self.stop_signal)
+                    sell_decision = high > (pos.buy_price + self.sell_signal)
+                    if stop_decision or sell_decision:
+                        pos.sell(timestamp=timestamp, price=close)
+                        print(f"Closed {ptype} position {pos.uuid} (amount={pos.amount}, "
+                              f"buy_price={pos.buy_price}, sell_price={pos.sell_price})")
+                        self.dates_traded = sorted(set(self.dates_traded) | {date})
+                elif ptype == "Short":
+                    stop_decision = high > (pos.buy_price - self.stop_signal)
+                    sell_decision = low > (pos.buy_price - self.sell_signal)
+                    if stop_decision or sell_decision:
+                        pos.sell(timestamp=timestamp, price=close)
+                        print(f"Closed {ptype} position {pos.uuid} (amount={pos.amount}, "
+                              f"buy_price={pos.buy_price}, sell_price={pos.sell_price})")
+                        self.dates_traded = sorted(set(self.dates_traded) | {date})
+                else:
+                    raise ValueError(f"Invalid position type: {ptype}")
+        elif date not in self.dates_traded:  # Only trade max once per day.
+            long_buy_decision = (high > mean_67 + self.entry_signal) and (close < mean_67 + self.sell_signal)
+            short_buy_decision = (low < mean_67 - self.entry_signal) and (close > mean_67 - self.sell_signal)
+            if long_buy_decision:
                 metadata = dict(buy_signal=self.entry_signal, sell_signal=self.sell_signal,
                                 stop_signal=self.stop_signal, mean_67=mean_67, high=high, low=low, close=close)
-                p = Position(open_timestamp=timestamp, buy_price=close, amount=100, test=TEST, bot_name=BOT_NAME,
-                             test_name=data["test_name"], **metadata)
-                print(f"Opened position {p.uuid} (amount={p.amount}, buy_price={p.buy_price})")
+                p = Long(open_timestamp=timestamp, buy_price=close, amount=100, test=TEST, bot_name=BOT_NAME,
+                         test_name=data["test_name"], **metadata)
+                print(f"Opened Long position {p.uuid} (amount={p.amount}, buy_price={p.buy_price})")
+                self.dates_traded = sorted(set(self.dates_traded) | {date})
+            elif short_buy_decision:
+                metadata = dict(buy_signal=self.entry_signal, sell_signal=self.sell_signal,
+                                stop_signal=self.stop_signal, mean_67=mean_67, high=high, low=low, close=close)
+                p = Short(open_timestamp=timestamp, buy_price=close, amount=100, test=TEST, bot_name=BOT_NAME,
+                          test_name=data["test_name"], **metadata)
+                print(f"Opened Short position {p.uuid} (amount={p.amount}, buy_price={p.buy_price})")
                 self.dates_traded = sorted(set(self.dates_traded) | {date})
 
 

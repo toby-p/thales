@@ -15,8 +15,8 @@ from thales.positions import ManagePositions
 
 
 if __name__ == "__main__":
-    test_start = datetime.datetime(2011, 8, 12, 8)
-    test_n_days = 20
+    test_start = datetime.datetime(2017, 8, 12, 8)
+    test_n_days = 100
     test_name = f"{test_start.strftime(MINUTE_FORMAT)}_n={test_n_days}"
     event_handler = TestTradeHandler()
     data_source = TestDataGenerator(test_name=test_name)

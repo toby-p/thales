@@ -10,7 +10,10 @@ from thales.config.paths import io_path
 from thales.config.utils import MILISECOND_FORMAT
 
 
-class Position:
+class _Position:
+    """Abstract class defining general attributes of a trading position."""
+
+    ptype = ""
 
     __slots__ = ["test", "test_name", "uuid", "bot_name", "open_timestamp", "buy_price", "amount", "close_timestamp",
                  "sell_price", "metadata"]
@@ -43,6 +46,12 @@ class Position:
     def is_open(self):
         return not self.close_timestamp and not self.sell_price
 
+
+    @property
+    def sell_buy_ratio(self):
+        if not self.is_open:
+            return self.sell_price / self.buy_price
+
     @property
     def hold_duration(self):
         if not self.close_timestamp:
@@ -57,16 +66,6 @@ class Position:
         test_name += f"_{self.test_name}" if self.test_name else ""
         name_elements = [test_name, self.bot_name if self.bot_name else None, self.uuid]
         return "__".join([f for f in name_elements if f])
-
-    @property
-    def sell_buy_ratio(self):
-        if not self.is_open:
-            return self.sell_price / self.buy_price
-
-    @property
-    def delta(self):
-        if not self.is_open:
-            return (self.amount * self.sell_buy_ratio) - self.amount
 
     def sell(self, timestamp: str, price: float, **metadata):
         assert self.is_open, f"Position already closed."
@@ -89,13 +88,46 @@ class Position:
                 os.remove(open_fp)
 
     def __repr__(self):
-        return json.dumps({k: getattr(self, k) for k in self.__slots__})
+        return json.dumps({**{"ptype": self.ptype}, **{k: getattr(self, k) for k in self.__slots__}})
 
     def __str__(self):
-        return f"Position('{self.name}')"
+        return f"{self.ptype}Position('{self.name}')"
 
-    def __add__(self, other):
-        return self.delta + other.delta
+
+class Long(_Position):
+    """Class for recording long trading positions."""
+    ptype = "Long"
+
+    def __init__(self, open_timestamp: str, buy_price: float, amount: float,
+                 test: bool = True, bot_name: str = None,
+                 close_timestamp: str = None, sell_price: float = None,
+                 uuid: str = None, test_name: str = None, **metadata):
+        super().__init__(open_timestamp=open_timestamp, buy_price=buy_price, amount=amount, test=test,
+                         bot_name=bot_name, close_timestamp=close_timestamp, sell_price=sell_price,
+                         uuid=uuid, test_name=test_name, **metadata)
+
+    @property
+    def delta(self):
+        if not self.is_open:
+            return (self.amount * self.sell_buy_ratio) - self.amount
+
+
+class Short(_Position):
+    """Class for recording long trading positions."""
+    ptype = "Short"
+
+    def __init__(self, open_timestamp: str, buy_price: float, amount: float,
+                 test: bool = True, bot_name: str = None,
+                 close_timestamp: str = None, sell_price: float = None,
+                 uuid: str = None, test_name: str = None, **metadata):
+        super().__init__(open_timestamp=open_timestamp, buy_price=buy_price, amount=amount, test=test,
+                         bot_name=bot_name, close_timestamp=close_timestamp, sell_price=sell_price,
+                         uuid=uuid, test_name=test_name, **metadata)
+
+    @property
+    def delta(self):
+        if not self.is_open:
+            return -((self.amount * self.sell_buy_ratio) - self.amount)
 
 
 def _list_positions(bot_name: str = None, test: bool = True,
@@ -136,9 +168,10 @@ class ManagePositions:
                 fp = os.path.join(directory, f"{files[0]}")
                 with open(fp, "r") as f:
                     position_data = json.loads(json.load(f))
-                    cls_data = {k: v for k, v in position_data.items() if k in Position.__slots__}
+                    cls = dict(Short=Short, Long=Long)[position_data.pop("ptype")]
+                    cls_data = {k: v for k, v in position_data.items() if k in _Position.__slots__}
                     metadata = cls_data.pop("metadata", dict())
-                    return Position(**cls_data, **metadata)
+                    return cls(**cls_data, **metadata)
             elif len(files) > 1:
                 raise ValueError(f"Multiple positions found for uuid: {uuid}")
         raise ValueError(f"No position found for uuid: {uuid}")
