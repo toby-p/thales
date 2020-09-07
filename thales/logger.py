@@ -10,7 +10,7 @@ from thales.config.utils import get_file_modified_date
 
 utc_now = pytz.utc.localize(datetime.datetime.utcnow())
 time_stamp = utc_now.astimezone(pytz.timezone("US/Eastern")).strftime("%Y_%m_%d %H;%M;%S")
-logpath = io_path("logs", filename="thales_log ({time_stamp}).log", make_file=False)
+logpath = io_path("logs", filename=f"thales_log ({time_stamp}).log", make_file=False)
 log_format = "[%(asctime)-15s] [%(levelname)08s] [%(funcName)s] %(message)s [line %(lineno)d]"
 
 try:

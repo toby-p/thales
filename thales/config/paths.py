@@ -49,9 +49,13 @@ def _construct_path(*subdir, filename: str = None, make_subdirs: bool = True,
 
 def io_path(*subdir, filename: str = None, make_subdirs: bool = False,
             make_file: bool = False):
+    # Remove empty elements from `subdir` - more flexible for applications:
+    subdir = [i for i in subdir if i]
     return _construct_path(*subdir, filename=filename, make_subdirs=make_subdirs, make_file=make_file, basedir=IO_DIR)
 
 
 def package_path(*subdir, filename: str = None, make_subdirs: bool = False,
                  make_file: bool = False):
+    # Remove empty elements from `subdir` - more flexible for applications:
+    subdir = [i for i in subdir if i]
     return _construct_path(*subdir, filename=filename, make_subdirs=make_subdirs, make_file=make_file, basedir=DIR)

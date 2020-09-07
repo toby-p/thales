@@ -6,10 +6,10 @@ as the event, and handlers are called each time new data is produced.
 import datetime
 import json
 import os
-import time
 
 from thales.config.bots import register_bot, validate_bot_name
 from thales.config.paths import io_path
+from thales.positions import Positions
 
 
 # ==============================================================================
@@ -29,8 +29,8 @@ class Handler:
     if not os.path.isdir(data_dir):
         os.mkdir(data_dir)
 
-    def __init__(self):
-        pass
+    def __init__(self, positions: Positions):
+        self.positions = positions
 
     def __call__(self, **kwargs):
         # ======================================================================
@@ -46,33 +46,35 @@ class Handler:
 
 class DataSource:
 
-    def __init__(self, *handler: Handler):
-        self.handlers = list(handler)
+    def __init__(self):
+        pass
 
-    def __call__(self):
+    def generator(self):
         # ======================================================================
         # Logic to produce data goes here:
         data = dict(timestamp=datetime.datetime.now(), open=None, high=None, low=None, close=None)
+        while True:
+            yield data
         # ======================================================================
-
-        for handler in self.handlers:
-            handler(**data)
 
 
 class Bot:
 
-    def __init__(self, src: DataSource, interval: float = 15):
+    def __init__(self, src: DataSource, *handler: Handler):
         self.src = src
-        self.interval = interval
+        self.handlers = handler
 
     def __call__(self):
+        generator = self.src.generator()
         while True:
-            self.src()
-            time.sleep(self.interval)
+            data = next(generator)
+            for handler in self.handlers:
+                handler(**data)
 
 
 if __name__ == "__main__":
-    event_handlers = [Handler()]
-    data_source = DataSource(*event_handlers)
-    bot = Bot(data_source)
+    position_handler = Positions(bot_name=BOT_NAME, test=True, create_test_dir=True)
+    event_handlers = [Handler(positions=position_handler)]
+    data_source = DataSource()
+    bot = Bot(data_source, *event_handlers)
     bot()

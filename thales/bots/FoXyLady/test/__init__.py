@@ -9,7 +9,7 @@ from thales.config.bots import register_bot, validate_bot_name
 from thales.config.paths import io_path
 from thales.config.utils import DATE_FORMAT, MILISECOND_FORMAT
 from thales.data import load_toy_dataset
-from thales.positions import _Position, Long, ManagePositions, Short
+from thales.positions import Positions
 
 
 # BOT SETUP
@@ -26,7 +26,7 @@ except AssertionError:
 # ==============================================================================
 class TestDataGenerator:
 
-    def __init__(self, test_name: str):
+    def __init__(self):
         self.year = 0
         self.year_df = pd.DataFrame()
         date_fp = io_path("bot_data", "FXyLady", "test", filename="dates.csv")
@@ -34,7 +34,6 @@ class TestDataGenerator:
         dates["dt"] = pd.to_datetime(dates["dates"], format="%Y_%m_%d")
         self.dates = dates["dt"].sort_values().reset_index(drop=True)
         self._67_data = dict()
-        self._test_name = test_name
 
     def get_67(self, dt: datetime.datetime):
         date_str = dt.strftime(DATE_FORMAT)
@@ -90,7 +89,7 @@ class TestDataGenerator:
                 current_date = row_date
                 day_count += 1
 
-            # Get the 6-7am data. If the hour is less than 6am, need the previous
+            # Get the 6-7am data. If the hour is less than 6am, need the prior
             # day's numbers:
             date_need_67 = datetime.datetime(row_date.year, row_date.month, row_date.day)
             if hour < 6:
@@ -105,7 +104,7 @@ class TestDataGenerator:
                 ix = 0
 
             if data_67 and data_minute:
-                yield {"67": data_67, "minute": data_minute, "test_name": self._test_name}
+                yield {"67": data_67, "minute": data_minute}
         return
 
 
@@ -113,30 +112,51 @@ class TestDataGenerator:
 # ==============================================================================
 class TestTradeHandler:
 
-    __slots__ = ["dates_traded", "entry_signal", "sell_signal", "stop_signal"]
+    __slots__ = ["positions", "dates_traded", "entry_signal", "sell_signal", "abs_long_stop", "abs_short_stop"]
 
-    def __init__(self, entry_signal: float = 0.2, sell_signal: float = 0.3,
-                 stop_signal: float = -0.2):
+    def __init__(self, positions: Positions, entry_signal: float = 0.2,
+                 sell_signal: float = 0.3, abs_long_stop: float = 0.3,
+                 abs_short_stop: float = 0.3):
+        """Class which when called with trading data handles the logic for
+        making decisions on whether to trade or not.
+
+
+        Args:
+            positions: object to manage opening/closing of positions.
+            entry_signal: number of basis points above/below baseline daily data
+                upon which to enter a long/short trade.
+            sell_signal: number of basis points above/below baseline daily data
+                upon which to exit a long/short trade (>`entry_signal`).
+            abs_long_stop: absolute number of basis points below `entry_signal`
+                upon which a long trade will be stopped.
+            abs_short_stop: absolute number of basis points above `entry_signal`
+                upon which a short trade will be stopped.
+        """
+        assert sell_signal > entry_signal, "sell_signal must be greater than entry_signal"
+        assert abs_long_stop >= 0, "abs_long_stop must be absolute (non-negative) float"
+        assert abs_short_stop >= 0, "abs_short_stop must be absolute (non-negative) float"
+        self.positions = positions
         self.dates_traded = list()
         self.entry_signal = entry_signal
         self.sell_signal = sell_signal
-        self.stop_signal = stop_signal
+        self.abs_long_stop = abs_long_stop
+        self.abs_short_stop = abs_short_stop
 
     def __call__(self, **data):
         mean_67 = data["67"]["mean"]
         high = data["minute"]["high"]
         low = data["minute"]["low"]
         close = data["minute"]["close"]
-        open_positions = ManagePositions.list_open_positions(bot_name=BOT_NAME, test=TEST)
+        open_positions = self.positions.open_positions
         dt = data["minute"]["datetime"]
         timestamp = dt.strftime(MILISECOND_FORMAT)
         date = dt.date()
         if open_positions:
             for p in open_positions:
-                pos: _Position = ManagePositions.get_position(p)
+                pos = self.positions.get_position(p)
                 ptype: str = pos.ptype
                 if ptype == "Long":
-                    stop_decision = low < (pos.buy_price + self.stop_signal)
+                    stop_decision = low < (pos.buy_price - self.abs_long_stop)
                     sell_decision = high > (pos.buy_price + self.sell_signal)
                     if stop_decision or sell_decision:
                         pos.sell(timestamp=timestamp, price=close)
@@ -144,7 +164,7 @@ class TestTradeHandler:
                               f"buy_price={pos.buy_price}, sell_price={pos.sell_price})")
                         self.dates_traded = sorted(set(self.dates_traded) | {date})
                 elif ptype == "Short":
-                    stop_decision = high > (pos.buy_price - self.stop_signal)
+                    stop_decision = high > (pos.buy_price + self.abs_short_stop)
                     sell_decision = low > (pos.buy_price - self.sell_signal)
                     if stop_decision or sell_decision:
                         pos.sell(timestamp=timestamp, price=close)
@@ -158,18 +178,21 @@ class TestTradeHandler:
             short_buy_decision = (low < mean_67 - self.entry_signal) and (close > mean_67 - self.sell_signal)
             if long_buy_decision:
                 metadata = dict(buy_signal=self.entry_signal, sell_signal=self.sell_signal,
-                                stop_signal=self.stop_signal, mean_67=mean_67, high=high, low=low, close=close)
-                p = Long(open_timestamp=timestamp, buy_price=close, amount=100, test=TEST, bot_name=BOT_NAME,
-                         test_name=data["test_name"], **metadata)
+                                abs_long_stop=self.abs_long_stop, abs_short_stop=self.abs_short_stop, mean_67=mean_67,
+                                high=high, low=low, close=close)
+                p = self.positions.open_new_position(ptype="long", open_timestamp=timestamp, buy_price=close,
+                                                     amount=100, test=TEST, **metadata)
                 print(f"Opened Long position {p.uuid} (amount={p.amount}, buy_price={p.buy_price})")
                 self.dates_traded = sorted(set(self.dates_traded) | {date})
             elif short_buy_decision:
                 metadata = dict(buy_signal=self.entry_signal, sell_signal=self.sell_signal,
-                                stop_signal=self.stop_signal, mean_67=mean_67, high=high, low=low, close=close)
-                p = Short(open_timestamp=timestamp, buy_price=close, amount=100, test=TEST, bot_name=BOT_NAME,
-                          test_name=data["test_name"], **metadata)
+                                abs_long_stop=self.abs_long_stop, abs_short_stop=self.abs_short_stop, mean_67=mean_67,
+                                high=high, low=low, close=close)
+                p = self.positions.open_new_position(ptype="short", open_timestamp=timestamp, buy_price=close,
+                                                     amount=100, test=TEST, **metadata)
                 print(f"Opened Short position {p.uuid} (amount={p.amount}, buy_price={p.buy_price})")
                 self.dates_traded = sorted(set(self.dates_traded) | {date})
+        self.positions.save_metadata(last_timestamp=timestamp)
 
 
 # BOT PROGRAM:
@@ -177,17 +200,19 @@ class TestTradeHandler:
 class TestBot:
 
     def __init__(self, src: TestDataGenerator, handler: TestTradeHandler,
-                 start: datetime.datetime, n_days: int):
+                 start: datetime.datetime, n_days: int, test_name: str = None):
         self.src = src
         self.handler = handler
         self.start = start
         self.n_days = n_days
+        self.test_name = test_name
 
     def __call__(self):
         generator = self.src.generator(start=self.start, n_days=self.n_days)
         while True:
             try:
-                self.handler(**next(generator))
+                data = {**{"test_name": self.test_name}, **next(generator)}
+                self.handler(**data)
             except StopIteration:
                 print("Test complete")
                 break

@@ -2,6 +2,7 @@
 
 from collections import Counter
 import datetime
+from keyword import iskeyword
 import os
 import pandas as pd
 import pytz
@@ -99,3 +100,19 @@ def get_file_modified_date(fp):
     """Get the datetime stamp of when a file was last modified."""
     unix_time = os.path.getmtime(fp)
     return datetime.datetime.fromtimestamp(unix_time)
+
+
+def is_valid_variable_name(name: str):
+    """Boolean test to see if a string is a valid Python variable name."""
+    return name.isidentifier() and not iskeyword(name)
+
+
+def is_iterable(obj: object):
+    """Returns True if an object is iterable, else False."""
+    try:
+        iter(obj)
+    except Exception:
+        return False
+    else:
+        return True
+
