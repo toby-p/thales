@@ -286,14 +286,16 @@ class Positions:
 
     @property
     def dataframe(self):
-        """Pandas.DataFrame of all position details."""
+        """Pandas.DataFrame of all position details, including metadata."""
         positions = [self.get_position(p) for p in self.open_positions + self.closed_positions]
+        metadata = pd.DataFrame([{**{"uuid": p.uuid}, **p.metadata} for p in positions])
         df = pd.DataFrame([json.loads(repr(p)) for p in positions])
         for date_col in ("open_timestamp", "close_timestamp"):
             df[date_col] = pd.to_datetime(df[date_col], format=MILISECOND_FORMAT)
             df[date_col] = pd.to_datetime(df[date_col], format=MILISECOND_FORMAT)
         df = df.sort_values(by=["open_timestamp"]).reset_index(drop=True)
         df["delta_cumsum"] = df["delta"].cumsum()
+        df = pd.merge(df, metadata, left_on="uuid", right_on="uuid", how="outer")
         return df
 
     @property
