@@ -13,7 +13,7 @@ except ModuleNotFoundError:
     sys.path.append(module_dir)
     import thales
 from thales.config.paths import io_path, package_path
-from thales.config.utils import date_col_from_datetime_col, DATE_FORMAT
+from thales.config.utils import date_col_from_datetime_col, DAY_FORMAT
 from thales.data import load_toy_dataset
 
 
@@ -45,7 +45,7 @@ def make_67_json(year: int):
 
     # Save each row as a JSON file:
     for ix in data.index:
-        date_str = ix.strftime(DATE_FORMAT)
+        date_str = ix.strftime(DAY_FORMAT)
         json_data = data.loc[ix].to_dict()
         json_data["date"] = date_str
         fn = f"{date_str}.json"

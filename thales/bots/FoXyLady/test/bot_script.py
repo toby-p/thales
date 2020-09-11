@@ -18,7 +18,7 @@ if __name__ == "__main__":
     test_start = datetime.datetime(2019, 9, 5, 8)
     test_n_days = 50
     position_handler = Positions(bot_name=BOT_NAME, test=True, create_test_dir=True)
-    position_handler.save_metadata(first_timestamp=test_start.strftime(MILISECOND_FORMAT))
+    position_handler.save_metadata(start_timestamp=test_start.strftime(MILISECOND_FORMAT))
     event_handler = TestTradeHandler(positions=position_handler,
                                      entry_signal=0.2, sell_signal=0.3,
                                      abs_long_stop=0.3, abs_short_stop=0.3)

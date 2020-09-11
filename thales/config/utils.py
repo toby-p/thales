@@ -2,6 +2,7 @@
 
 from collections import Counter
 import datetime
+from dateutil.parser import parse
 from keyword import iskeyword
 import os
 import pandas as pd
@@ -29,10 +30,31 @@ DEFAULT_FIELDMAP = {
 PASS, FAIL = "\u2714", "\u2718"
 
 # String format for reading/saving datetimes:
-DATE_FORMAT = "%Y_%m_%d"
+DAY_FORMAT = "%Y_%m_%d"
 SECOND_FORMAT = "%Y_%m_%d %H;%M;%S"
 MILISECOND_FORMAT = "%Y_%m_%d %H;%M;%S;%f"
 MINUTE_FORMAT = "%Y_%m_%d %H;%M"
+DATE_FORMATS = {"day": DAY_FORMAT, "second": SECOND_FORMAT, "milisecond": MILISECOND_FORMAT, "minute": MINUTE_FORMAT}
+
+
+def parse_datetime(dt: object, **kwargs) -> datetime.datetime:
+    """Take a string or date/datetime object and return a datetime.datetime if
+    possible."""
+    if isinstance(dt, datetime.datetime):
+        return dt
+    elif isinstance(dt, datetime.date):  # Convert to datetime:
+        return datetime.datetime(dt.year, dt.month, dt.day)
+    elif isinstance(dt, pd.Timestamp):
+        return dt.to_pydatetime()
+    if isinstance(dt, str):
+        # Try date formats from most to least specific:
+        formats = ("milisecond", "second", "minute", "day")
+        for f in formats:
+            try:
+                return datetime.datetime.strptime(dt, DATE_FORMATS[f])
+            except ValueError:
+                continue
+        return parse(dt, **kwargs)
 
 
 def sp500():
@@ -67,7 +89,7 @@ def merge_dupe_cols(df: pd.DataFrame):
     return df
 
 
-def now_str(fmt: str = DATE_FORMAT, timezone: str = "US/Eastern"):
+def now_str(fmt: str = DAY_FORMAT, timezone: str = "US/Eastern"):
     """String representation of the current datetime.
 
     Args:

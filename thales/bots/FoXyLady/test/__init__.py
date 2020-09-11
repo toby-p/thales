@@ -5,9 +5,10 @@ import json
 import os
 import pandas as pd
 
+from thales.bots import DataSource, EventHandler, TradingBot
 from thales.config.bots import register_bot, validate_bot_name
 from thales.config.paths import io_path
-from thales.config.utils import DATE_FORMAT, MILISECOND_FORMAT
+from thales.config.utils import DAY_FORMAT, MILISECOND_FORMAT
 from thales.data import load_toy_dataset
 from thales.positions import Positions
 
@@ -24,9 +25,10 @@ except AssertionError:
 
 # DATA SOURCE:
 # ==============================================================================
-class TestDataGenerator:
+class TestDataGenerator(DataSource):
 
     def __init__(self):
+        super().__init__()
         self.year = 0
         self.year_df = pd.DataFrame()
         date_fp = io_path("bot_data", "FXyLady", "test", filename="dates.csv")
@@ -36,7 +38,7 @@ class TestDataGenerator:
         self._67_data = dict()
 
     def get_67(self, dt: datetime.datetime):
-        date_str = dt.strftime(DATE_FORMAT)
+        date_str = dt.strftime(DAY_FORMAT)
         try:
             return self._67_data[date_str]
         except KeyError:
@@ -110,13 +112,13 @@ class TestDataGenerator:
 
 # EVENT HANDLERS:
 # ==============================================================================
-class TestTradeHandler:
+class TestTradeHandler(EventHandler):
 
     __slots__ = ["positions", "dates_traded", "entry_signal", "sell_signal", "abs_long_stop", "abs_short_stop"]
 
     def __init__(self, positions: Positions, entry_signal: float = 0.2,
                  sell_signal: float = 0.3, abs_long_stop: float = 0.3,
-                 abs_short_stop: float = 0.3):
+                 abs_short_stop: float = 0.3, *args, **kwargs):
         """Class which when called with trading data handles the logic for
         making decisions on whether to trade or not.
 
@@ -132,6 +134,7 @@ class TestTradeHandler:
             abs_short_stop: absolute number of basis points above `entry_signal`
                 upon which a short trade will be stopped.
         """
+        super().__init__()
         assert sell_signal > entry_signal, "sell_signal must be greater than entry_signal"
         assert abs_long_stop >= 0, "abs_long_stop must be absolute (non-negative) float"
         assert abs_short_stop >= 0, "abs_short_stop must be absolute (non-negative) float"
@@ -192,17 +195,16 @@ class TestTradeHandler:
                                                      amount=100, test=TEST, **metadata)
                 print(f"Opened Short position {p.uuid} (amount={p.amount}, buy_price={p.buy_price})")
                 self.dates_traded = sorted(set(self.dates_traded) | {date})
-        self.positions.save_metadata(last_timestamp=timestamp)
+        self.positions.save_metadata(end_timestamp=timestamp)
 
 
 # BOT PROGRAM:
 # ==============================================================================
-class TestBot:
+class TestBot(TradingBot):
 
-    def __init__(self, src: TestDataGenerator, handler: TestTradeHandler,
+    def __init__(self, src: DataSource, handler: EventHandler,
                  start: datetime.datetime, n_days: int, test_name: str = None):
-        self.src = src
-        self.handler = handler
+        super().__init__(src, handler)
         self.start = start
         self.n_days = n_days
         self.test_name = test_name
@@ -212,7 +214,8 @@ class TestBot:
         while True:
             try:
                 data = {**{"test_name": self.test_name}, **next(generator)}
-                self.handler(**data)
+                for handler in self.handlers:
+                    handler(**data)
             except StopIteration:
                 print("Test complete")
                 break

@@ -1,7 +1,8 @@
 *.json
 *.csv
-!thales/data/toy_datasets/*
+!thales/data/toy_datasets/**
 .ipynb_checkpoints
 /**.ipynb
 /**.idea
 **/__pycache__/**
+**.DS_Store

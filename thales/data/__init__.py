@@ -7,7 +7,7 @@ from thales.config.fieldmaps import apply_fieldmap, get_fieldmap
 from thales.config.paths import io_path, package_path
 from thales.config.sources import validate_source
 from thales.config.symbols import MasterSymbols
-from thales.config.utils import DATE_FORMAT, DEFAULT_SUBDIR, merge_dupe_cols
+from thales.config.utils import DAY_FORMAT, DEFAULT_SUBDIR, merge_dupe_cols
 
 min_request_time = "2020_01_01 00;00;00"
 
@@ -118,7 +118,7 @@ class DataSet:
         if "request_time" not in df.columns:
             df["request_time"] = min_request_time
         df["request_time"] = df["request_time"].fillna(min_request_time)
-        df["request_time"] = pd.to_datetime(df["request_time"], format=DATE_FORMAT)
+        df["request_time"] = pd.to_datetime(df["request_time"], format=DAY_FORMAT)
         df.sort_values(by=sort_cols, ascending=True, inplace=True)
         return df.drop_duplicates(subset=["datetime"], keep="last")
 

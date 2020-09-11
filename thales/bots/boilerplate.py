@@ -7,6 +7,7 @@ import datetime
 import json
 import os
 
+from thales.bots import DataSource, EventHandler, TradingBot
 from thales.config.bots import register_bot, validate_bot_name
 from thales.config.paths import io_path
 from thales.positions import Positions
@@ -23,13 +24,13 @@ except AssertionError:
 BOT_DIR = io_path("bot_data", BOT_NAME)
 
 
-class Handler:
-
+class TradeHandler(EventHandler):
     data_dir = os.path.join(BOT_DIR, "handler_data")
     if not os.path.isdir(data_dir):
         os.mkdir(data_dir)
 
     def __init__(self, positions: Positions):
+        super().__init__()
         self.positions = positions
 
     def __call__(self, **kwargs):
@@ -44,10 +45,9 @@ class Handler:
         # ======================================================================
 
 
-class DataSource:
-
+class TestSource(DataSource):
     def __init__(self):
-        pass
+        super().__init__()
 
     def generator(self):
         # ======================================================================
@@ -58,11 +58,9 @@ class DataSource:
         # ======================================================================
 
 
-class Bot:
-
-    def __init__(self, src: DataSource, *handler: Handler):
-        self.src = src
-        self.handlers = handler
+class Bot(TradingBot):
+    def __init__(self, src: TestSource, *handler: TradeHandler):
+        super().__init__(src, *handler)
 
     def __call__(self):
         generator = self.src.generator()
@@ -74,7 +72,7 @@ class Bot:
 
 if __name__ == "__main__":
     position_handler = Positions(bot_name=BOT_NAME, test=True, create_test_dir=True)
-    event_handlers = [Handler(positions=position_handler)]
-    data_source = DataSource()
+    event_handlers = [TradeHandler(positions=position_handler)]
+    data_source = TestSource()
     bot = Bot(data_source, *event_handlers)
     bot()

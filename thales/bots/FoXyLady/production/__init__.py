@@ -7,7 +7,7 @@ import time
 
 from thales.config.bots import register_bot, validate_bot_name
 from thales.config.paths import io_path
-from thales.config.utils import DATE_FORMAT
+from thales.config.utils import DAY_FORMAT
 
 
 # BOT SETUP
@@ -41,7 +41,7 @@ class Data67:
         self.data = dict()
 
     def __call__(self, dt: datetime.datetime):
-        date_str = dt.strftime(DATE_FORMAT)
+        date_str = dt.strftime(DAY_FORMAT)
         try:
             return self.data[date_str]
         except KeyError:
