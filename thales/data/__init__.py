@@ -7,9 +7,7 @@ from thales.config.fieldmaps import apply_fieldmap, get_fieldmap
 from thales.config.paths import io_path, package_path
 from thales.config.sources import validate_source
 from thales.config.symbols import MasterSymbols
-from thales.config.utils import DAY_FORMAT, DEFAULT_SUBDIR, merge_dupe_cols
-
-min_request_time = "2020_01_01 00;00;00"
+from thales.config.utils import DEFAULT_SUBDIR, merge_dupe_cols, SECOND_FORMAT
 
 
 def save_toy_dataset(df: pd.DataFrame, name: str, **kwargs):
@@ -29,7 +27,7 @@ def load_toy_dataset(name: str, **kwargs):
     return df
 
 
-class DataSet:
+class CSVLoader:
     """API for loading a CSV file into memory as a Pandas DataFrame to do
     something with it."""
 
@@ -71,11 +69,11 @@ class DataSet:
         df = apply_fieldmap(df.reset_index(drop=True), src=src)
 
         # Clean and de-dupe data:
-        df = DataSet.clean_dataset(df, src=src)
-        df = DataSet.dedupe_by_request_time(df)
+        df = CSVLoader.clean_dataset(df, src=src)
+        df = CSVLoader.dedupe_by_request_time(df)
 
         # Adjust open/low/high prices if necessary:
-        DataSet.adjust_prices(df)
+        CSVLoader.adjust_prices(df)
 
         return df.reset_index(drop=True)
 
@@ -115,10 +113,11 @@ class DataSet:
         recently scraped data in place.
         """
         sort_cols = ["datetime", "request_time", "volume"]
+        default_request_time = "2020_01_01 00;00;00"
         if "request_time" not in df.columns:
-            df["request_time"] = min_request_time
-        df["request_time"] = df["request_time"].fillna(min_request_time)
-        df["request_time"] = pd.to_datetime(df["request_time"], format=DAY_FORMAT)
+            df["request_time"] = default_request_time
+        df["request_time"] = df["request_time"].fillna(default_request_time)
+        df["request_time"] = pd.to_datetime(df["request_time"], format=SECOND_FORMAT)
         df.sort_values(by=sort_cols, ascending=True, inplace=True)
         return df.drop_duplicates(subset=["datetime"], keep="last")
 
@@ -136,8 +135,8 @@ class DataSet:
         """Add adjusted price columns for `low`, `open`, and `high` based on the
         ratio between the close price and adjusted close price."""
         if "raw_close" in df.columns and "close" in df.columns:
-            if len(DataSet.rows_need_adjusting(df)):
+            if len(CSVLoader.rows_need_adjusting(df)):
                 adjustment_factor = df["close"] / df["raw_close"]
                 for col in ("low", "high", "open"):
                     df[col] = df[col] * adjustment_factor
-                assert not len(DataSet.rows_need_adjusting(df)), "Something went wrong in adjusting prices."
+                assert not len(CSVLoader.rows_need_adjusting(df)), "Something went wrong in adjusting prices."

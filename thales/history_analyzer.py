@@ -2,7 +2,7 @@
 import pandas as pd
 
 from thales.config.sources import validate_source
-from thales.data import DataSet
+from thales.data import CSVLoader
 
 
 class HistoryAnalyzer:
@@ -25,7 +25,7 @@ class HistoryAnalyzer:
         """
         assert max_hold_n >= 1, f"Trading hold length must be at least 1 (got: {max_hold_n})"
         src = validate_source(src)
-        df = DataSet.load_by_symbol(sym, src=src, subdir=subdir)[["datetime", target]]
+        df = CSVLoader.load_by_symbol(sym, src=src, subdir=subdir)[["datetime", target]]
         n_rows_raw = len(df)
         dfs = list()
         for i in range(1, max_hold_n + 1, 1):

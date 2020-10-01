@@ -11,7 +11,7 @@ from thales.config.exceptions import custom_format_warning, InvalidApiCall
 from thales.config.paths import io_path
 from thales.config.fx_pairs import FXPairs
 from thales.config.utils import PASS, FAIL, now_str
-from thales.data import DataSet
+from thales.data import CSVLoader
 
 
 warnings.formatwarning = custom_format_warning
@@ -145,7 +145,7 @@ class AlphaVantageFX:
                 n = len(df)
                 fp = os.path.join(target, f"{pair_name}.csv")
                 if os.path.exists(fp):
-                    old = DataSet.load_by_fxpair(pair_name, src=AlphaVantageFX.name, subdir=function)
+                    old = CSVLoader.load_by_fxpair(pair_name, src=AlphaVantageFX.name, subdir=function)
                     df = df.append(old, sort=False)
                     df.drop_duplicates(keep="first", inplace=True)
                 df.to_csv(fp, encoding="utf-8", index=False)

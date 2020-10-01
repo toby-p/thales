@@ -34,7 +34,7 @@ def slow_stochastic_oscillator(df: pd.DataFrame, n: int = 14) -> pd.Series:
 def fast_stochastic_oscillator(df: pd.DataFrame, n: int = 3,
                                k_n: int = 14) -> pd.Series:
     """'Fast' Stochastic oscillator, also known as '%D' (just a simple moving
-     average of the slow stochastic_oscillator) see:
+    average of the slow stochastic_oscillator) see:
         https://www.investopedia.com/terms/s/stochasticoscillator.asp
     """
     k = slow_stochastic_oscillator(df, n=k_n)

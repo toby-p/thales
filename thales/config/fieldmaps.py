@@ -2,7 +2,6 @@
 (e.g. closing price, date, open price, etc) to the standardized names used for
 each field throughout the package."""
 
-import os
 import pandas as pd
 import yaml
 
@@ -15,7 +14,7 @@ from thales.config.utils import DEFAULT_FIELDMAP
 def get_fieldmap(src: str) -> dict:
     """Load stored fieldmap for the specified API/website source."""
     src = validate_source(src)
-    fieldmap_fp = io_path("fieldmaps", filename="{src}.yaml")
+    fieldmap_fp = io_path("fieldmaps", filename=f"{src}.yaml")
     with open(fieldmap_fp) as stream:
         fieldmap_fp = yaml.safe_load(stream)
     return fieldmap_fp
