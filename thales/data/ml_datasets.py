@@ -1,46 +1,10 @@
 
 import pandas as pd
 
-from thales.config.exceptions import InvalidIndicator
 from thales.config.sources import validate_source
 from thales.config.utils import DEFAULT_SUBDIR
 from thales.data import CSVLoader
 from thales.indicators import apply_df_indicator, apply_series_indicator, dataframe_indicators, series_indicators
-
-
-class OneSymDaily(CSVLoader):
-    """Build a data for a machine learning task on a single symbol's daily data.
-    """
-
-    src = "alphavantage"
-
-    @staticmethod
-    def load(sym: str):
-        df = OneSymDaily.load_by_symbol(sym, src=OneSymDaily.src, subdir=DEFAULT_SUBDIR, precision=5)
-        df = df.set_index("datetime").sort_index()
-        apply_df_indicator(df, "tp")  # Add typical price.
-        return df[["open", "low", "high", "close", "typical"]]
-
-    @staticmethod
-    def apply_indicators(df: pd.DataFrame, target: str = "close", **kwargs):
-        """Apply indicators to the DataFrame based on the keyword arguments,a
-        where key is the name of the indicator, and value is another dict of
-        keyword args to pass to the indicator function. If no kwargs are passed
-        then all indicators are applied with default values."""
-        if not kwargs:
-            kwargs = {k: None for k in {**series_indicators, **dataframe_indicators}.keys()}
-        ignore = ["tp"]  # Typical price is not really an indicator and should have already been applied.
-        for k, v in kwargs.items():
-            if k in ignore:
-                continue
-            if not v:
-                v = dict()
-            if k in series_indicators:
-                apply_series_indicator(df=df, indicator=k, target=target, **v)
-            elif k in dataframe_indicators:
-                apply_df_indicator(df=df, indicator=k, **v)
-            else:
-                raise InvalidIndicator(k)
 
 
 class Dataset:
@@ -55,16 +19,49 @@ class Dataset:
         self.subdir = DEFAULT_SUBDIR if not subdir else subdir
         self.precision = precision
 
-        # Attributes to store loaded data:
+        # Attrs to store loaded data:
         self._loaded = dict()  # Tracks data has already been loaded for which symbols.
         self.df = pd.DataFrame()
 
+        # Attrs storing data for machine learning tasks:
+        self.ys = pd.DataFrame()
+
+    def _update_y_index(self):
+        """Reset the index of the `ys` attr to match that of the `df` attr."""
+        self.ys = self.ys.reindex(self.df.index)
+
+    def create_y_future(self, sym: str, ohlct: str = "c", n: int = 1):
+        """Create a target `y` column which is simply an ohlct price shifted `n`
+        time periods (i.e. rows) into the future."""
+        df_col_name = self._make_column_name(sym, ohlct)
+        y_col_name = f"{df_col_name}_n+{n}"
+        if y_col_name not in self.ys.columns:
+            src_series = self.df[df_col_name]
+            self._update_y_index()
+            self.ys[y_col_name] = src_series.shift(-n)
+        return y_col_name
+
+    def create_y_pc(self, sym: str, ohlct: str = "c", n: int = 1):
+        """Create a target `y` column which is the percentage difference between
+        the current date's ohlct price and the same ohlct price shifted `n` time
+        periods (i.e. rows) into the future."""
+        df_col_name = self._make_column_name(sym, ohlct)
+        y_col_name = f"{df_col_name}_n+{n}_pc"
+        if y_col_name not in self.ys.columns:
+            n_ycol = self.create_y_future(sym=sym, ohlct=ohlct, n=n)
+            self._update_y_index()
+            self.ys[y_col_name] = (self.ys[n_ycol] - self.df[df_col_name]) / self.df[df_col_name]
+        return y_col_name
+
     @staticmethod
-    def full_column_name(*c: str) -> list:
-        """Get full column names by passing abbreviation,
-        e.g. get `close` by passing `c`."""
+    def full_column_name(*ohlct: str) -> list:
+        """Get full column names by passing abbreviation, e.g. get `close` by
+        passing `c`."""
         col_dict = {s[0]: s for s in ("open", "low", "high", "close", "typical")}
-        return [col_dict[i[0].lower()] for i in c]
+        return [col_dict[i[0].lower()] for i in ohlct]
+
+    def _make_column_name(self, sym: str, ohlct: str):
+        return f"{sym.upper()}_{self.full_column_name(ohlct)[0]}"
 
     def load(self, sym: str, *col):
         """Add data into the `df` attribute.
@@ -88,7 +85,7 @@ class Dataset:
         self.df = pd.merge(self.df, df, left_index=True, right_index=True, how="outer")
         self._loaded[sym.upper()] = sorted(set(already_loaded + cols_to_load))
 
-    def apply_series_indicator(self, sym: str, col: str = "c", **kwargs):
+    def apply_series_indicator(self, sym: str, ohlct: str = "c", **kwargs):
         """Apply series indicators to `df` based on keyword arguments, where
         keys are indicator names, and value are dicts of valid kwargs for that
         indicator function. If no kwargs are passed all indicators are applied
@@ -96,15 +93,14 @@ class Dataset:
 
         Args:
             sym: which symbol's column to apply indicators to.
-            col: column to apply indicators to from o/h/l/c/t.
+            ohlct: column to apply indicators to from o/h/l/c/t.
         """
         if not kwargs:
             kwargs = {k: None for k in series_indicators.keys()}
-        target = f"{sym.upper()}_{self.full_column_name(col)[0]}"
         for k, v in kwargs.items():
             if not v:
                 v = dict()
-            apply_series_indicator(df=self.df, indicator=k, target=target, **v)
+            apply_series_indicator(df=self.df, indicator=k, target=self._make_column_name(sym, ohlct), **v)
 
     def apply_dataframe_indicator(self, sym: str, **kwargs):
         """Apply DataFrame indicators to `df` based on keyword arguments, where
