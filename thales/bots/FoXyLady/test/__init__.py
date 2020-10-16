@@ -10,7 +10,7 @@ from thales.config.bots import register_bot, validate_bot_name
 from thales.config.paths import io_path
 from thales.config.utils import DAY_FORMAT, MILISECOND_FORMAT
 from thales.data import load_toy_dataset
-from thales.positions import Positions
+from thales.positions import PositionManager
 
 
 # BOT SETUP
@@ -116,7 +116,7 @@ class TestTradeHandler(EventHandler):
 
     __slots__ = ["positions", "dates_traded", "entry_signal", "sell_signal", "abs_long_stop", "abs_short_stop"]
 
-    def __init__(self, positions: Positions, entry_signal: float = 0.2,
+    def __init__(self, positions: PositionManager, entry_signal: float = 0.2,
                  sell_signal: float = 0.3, abs_long_stop: float = 0.3,
                  abs_short_stop: float = 0.3, *args, **kwargs):
         """Class which when called with trading data handles the logic for

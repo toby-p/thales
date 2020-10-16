@@ -10,7 +10,7 @@ import os
 from thales.bots import DataSource, EventHandler, TradingBot
 from thales.config.bots import register_bot, validate_bot_name
 from thales.config.paths import io_path
-from thales.positions import Positions
+from thales.positions import PositionManager
 
 
 # ==============================================================================
@@ -29,7 +29,7 @@ class TradeHandler(EventHandler):
     if not os.path.isdir(data_dir):
         os.mkdir(data_dir)
 
-    def __init__(self, positions: Positions):
+    def __init__(self, positions: PositionManager):
         super().__init__()
         self.positions = positions
 
@@ -71,7 +71,7 @@ class Bot(TradingBot):
 
 
 if __name__ == "__main__":
-    position_handler = Positions(bot_name=BOT_NAME, test=True, create_test_dir=True)
+    position_handler = PositionManager(bot_name=BOT_NAME, test=True, create_test_dir=True)
     event_handlers = [TradeHandler(positions=position_handler)]
     data_source = TestSource()
     bot = Bot(data_source, *event_handlers)

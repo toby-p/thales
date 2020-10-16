@@ -43,8 +43,25 @@ class _Position:
         self.amount = amount
         self.close_timestamp = close_timestamp
         self.sell_price = sell_price
-        self.metadata = metadata
+        self.metadata = self._convert_metadata(**metadata)
         self.save()
+
+    @staticmethod
+    def _convert_metadata(**metadata):
+        """Convert numpy/datetime types in metadata to Python objects so that
+        they can be JSON serialized"""
+        converted_metadata = dict()
+        for k, v in metadata.items():
+            if type(k).__module__ == "numpy":
+                k = k.item()
+            elif type(k).__module__ == "datetime":
+                k = str(k)
+            if type(v).__module__ == "numpy":
+                v = v.item()
+            elif type(v).__module__ == "datetime":
+                v = str(v)
+            converted_metadata[k] = v
+        return converted_metadata
 
     @property
     def is_open(self):
@@ -73,7 +90,7 @@ class _Position:
         assert timestamp and isinstance(price, Number), f"timestamp and price must be passed"
         self.close_timestamp = timestamp
         self.sell_price = price
-        self.metadata = {**self.metadata, **metadata}
+        self.metadata = {**self.metadata, **self._convert_metadata(**metadata)}
         assert not self.is_open, "Something went wrong."
         self.save()
 
@@ -137,7 +154,7 @@ class Short(_Position):
             return -((self.amount * self.sell_buy_ratio) - self.amount)
 
 
-class Positions:
+class PositionManager:
     """API for managing trading positions."""
     def __init__(self, bot_name: str = None, test: bool = True,
                  create_test_dir: bool = False, open_most_recent: bool = False,
@@ -189,6 +206,8 @@ class Positions:
         self.open_fp = io_path("positions", *subdirs, "open", make_subdirs=True)
         self.closed_fp = io_path("positions", *subdirs, "closed", make_subdirs=True)
         self.test = test
+        # DataFrame which can be constructed to analyse all positions:
+        self.df = pd.DataFrame()
 
     def _list_positions(self, closed: bool = True):
         fp = self.closed_fp if closed else self.open_fp
@@ -207,7 +226,8 @@ class Positions:
         return self._list_positions(closed=True)
 
     def get_position(self, position_name: str):
-        """Open a single position as an instance of either a `Long` or `Short` position object."""
+        """Open a single position as an instance of either a `Long` or `Short`
+        position object."""
         uuid = position_name.split("__")[-1]
         for directory in (self.open_fp, self.closed_fp):
             files = os.listdir(directory)
@@ -284,9 +304,9 @@ class Positions:
         else:
             return dict()
 
-    @property
-    def dataframe(self):
-        """Pandas.DataFrame of all position details, including metadata."""
+    def construct_dataframe(self):
+        """Construct a DataFrame of all position details including metadata for
+        analysis & plotting."""
         positions = [self.get_position(p) for p in self.open_positions + self.closed_positions]
         metadata = pd.DataFrame([{**{"uuid": p.uuid}, **p.metadata} for p in positions])
         df = pd.DataFrame([json.loads(repr(p)) for p in positions])
@@ -296,13 +316,13 @@ class Positions:
         df = df.sort_values(by=["open_timestamp"]).reset_index(drop=True)
         df["delta_cumsum"] = df["delta"].cumsum()
         df = pd.merge(df, metadata, left_on="uuid", right_on="uuid", how="outer")
-        return df
+        self.df = df
 
     @property
     def cumsum(self):
         """DataFrame of all the changes in the cumulative sum of deltas, from
         both the open and close timestamps of trades."""
-        df = self.dataframe[["open_timestamp", "close_timestamp", "delta_cumsum"]].dropna()
+        df = self.df[["open_timestamp", "close_timestamp", "delta_cumsum"]].dropna()
         o_df = pd.DataFrame( {"timestamp": df["open_timestamp"],
                               "cumsum": [0] + list(df["delta_cumsum"].shift(1).iloc[1:])})
         c_df = pd.DataFrame({"timestamp": df["close_timestamp"], "cumsum": df["delta_cumsum"]})
@@ -310,7 +330,7 @@ class Positions:
 
     def plot_trades(self, figsize=(12, 8)):
         """Plot all trades recorded in this instance."""
-        df = self.dataframe.dropna(subset=["delta_cumsum"])
+        df = self.df.dropna(subset=["delta_cumsum"])
         fig, ax = plt.subplots(figsize=figsize)
         for i, row in df.iterrows():
             color = "g" if row["delta"] >= 0 else "r"
@@ -321,8 +341,7 @@ class Positions:
         ax.plot(self.cumsum, linewidth="3", color="#9933ff", alpha=0.5, label="cumulative_sum")
         if "last_timestamp" in self.metadata:  # Plot any remaining open trades:
             xmax = datetime.datetime.strptime(self.metadata["last_timestamp"], MILISECOND_FORMAT)
-            open_df = self.dataframe.loc[(self.dataframe["open_timestamp"].notna()) &
-                                         (self.dataframe["close_timestamp"].isna())]
+            open_df = self.df.loc[(self.df["open_timestamp"].notna()) & (self.df["close_timestamp"].isna())]
             for i, row in open_df.iterrows():
                 ax.plot([row["open_timestamp"], xmax], [0, 0], color="#ff9900", linewidth=3)
                 ax.scatter(row["open_timestamp"], 0, marker=".", color="#ff9900", s=75)
@@ -345,21 +364,18 @@ class Positions:
         return fig
 
 
-class ManagePositions:
-    """API for managing all positions across different bots."""
-    @staticmethod
-    def delete_all_tests(bot_name: str = None):
-        """Delete all time-stamped test directories. WARNING: can't be undone."""
-        count = 0
-        bot_name = validate_bot_name(bot_name) if bot_name else None
-        while True:
-            try:
-                p = Positions(bot_name=bot_name, test=True, open_most_recent=True)
-                p.del_test_dir()
-                count += 1
-            except AssertionError:
-                break
-        if not count:
-            print("No test directories to delete.")
-        p = Positions(bot_name=bot_name)
-        p.del_test_positions()
+def delete_all_tests(bot_name: str = None):
+    """Delete all time-stamped test directories. WARNING: can't be undone."""
+    count = 0
+    bot_name = validate_bot_name(bot_name) if bot_name else None
+    while True:
+        try:
+            p = PositionManager(bot_name=bot_name, test=True, open_most_recent=True)
+            p.del_test_dir()
+            count += 1
+        except AssertionError:
+            break
+    if not count:
+        print("No test directories to delete.")
+    p = PositionManager(bot_name=bot_name)
+    p.del_test_positions()

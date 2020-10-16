@@ -14,7 +14,7 @@ except ModuleNotFoundError:
 
 from thales.bots.FoXyLady.test import TestTradeHandler, TestDataGenerator, TestBot, BOT_NAME
 from thales.config.utils import MINUTE_FORMAT
-from thales.positions import Positions
+from thales.positions import PositionManager
 
 
 data_source = TestDataGenerator()
@@ -37,6 +37,6 @@ if __name__ == "__main__":
             bot = TestBot(src=data_source, handler=event_handler, start=test_start, n_days=test_n_days,
                           test_name=test_name)
             bot()
-            Positions.calc_bot_performance(bot_name=BOT_NAME, test_name=test_name, test=True, save=True)
+            PositionManager.calc_bot_performance(bot_name=BOT_NAME, test_name=test_name, test=True, save=True)
         except IndexError:
             continue

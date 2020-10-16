@@ -11,13 +11,13 @@ except ModuleNotFoundError:
     import thales
 from thales.bots.FoXyLady.test import TestTradeHandler, TestDataGenerator, TestBot, BOT_NAME
 from thales.config.utils import MILISECOND_FORMAT
-from thales.positions import Positions
+from thales.positions import PositionManager
 
 
 if __name__ == "__main__":
     test_start = datetime.datetime(2019, 9, 5, 8)
     test_n_days = 50
-    position_handler = Positions(bot_name=BOT_NAME, test=True, create_test_dir=True)
+    position_handler = PositionManager(bot_name=BOT_NAME, test=True, create_test_dir=True)
     position_handler.save_metadata(start_timestamp=test_start.strftime(MILISECOND_FORMAT))
     event_handler = TestTradeHandler(positions=position_handler,
                                      entry_signal=0.2, sell_signal=0.3,

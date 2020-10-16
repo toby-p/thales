@@ -10,17 +10,36 @@ from thales.config.utils import parse_datetime, PRICE_COLS
 class TestDataset:
     """Class for handling test datasets for back-testing strategies."""
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, start_date: object = None,
+                 end_date: object = None):
         """Class for interacting with locally stored historical data.
+
+        Args:
+            name: valid name of a test dataset.
+            start_date: string or datetime representing the back-test start.
+            end_date: string or datetime representing the back-test end.
         """
+        self.df = pd.DataFrame(columns=list(PRICE_COLS)+["datetime"]).set_index(["datetime"])
         data_dir = package_path("data", "toy_datasets", name)
         assert os.path.exists(data_dir), f"Invalid data directory name: {name}"
         self.data_dir = data_dir
         self.name = name
-        self.df = pd.DataFrame(columns=list(PRICE_COLS)+["datetime"]).set_index(["datetime"])
-        self.year: int = 0
+        self.start_date = parse_datetime(start_date)
+        self.end_date = parse_datetime(end_date)
+        if start_date and end_date:
+            self.load_by_date(start_date, end_date)
+
+    def load_by_date(self, start_date: object, end_date: object):
+        """Load data to the `df` attribute between the 2 dates."""
+        self.start_date = parse_datetime(start_date)
+        self.end_date = parse_datetime(end_date)
+        years = list(range(self.start_date.year, self.end_date.year + 1, 1))
+        for y in years:
+            self.load_year(y)
+        self.df = self.df.loc[(self.df.index >= self.start_date) & (self.df.index <= self.end_date)]
 
     def _build_stats(self):
+        """Build and save a CSV of statistics about the dataset."""
         stats = pd.DataFrame()
         for year in self.available_years:
             df = self.open_year_csv(year)
@@ -113,10 +132,10 @@ class TestDataset:
 
         Args:
             condition: string representing a condition for a specific price
-                column, in format: `{column}_{operator}_{value}`. Valid
-                operators are: `g` (greater), `ge` (greater-equal), `l` (less),
-                `le` (less equal). E.g. to find rows where `close` is greater or
-                equal to 123.45 pass the string `close_ge_123.45`.
+                column, in format: `{column}_{operator}_{value}`
+                Valid operators are: `g` (greater), `ge` (greater-equal),
+                `l` (less), `le` (less equal). E.g. to find rows where `close`
+                is greater/equal to 123.45 pass: `close_ge_123.45`.
         """
         assert condition, "No conditions passed"
         expressions = list()
