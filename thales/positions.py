@@ -49,7 +49,7 @@ class _Position:
     @staticmethod
     def _convert_metadata(**metadata):
         """Convert numpy/datetime types in metadata to Python objects so that
-        they can be JSON serialized"""
+        they can be JSON serialized."""
         converted_metadata = dict()
         for k, v in metadata.items():
             if type(k).__module__ == "numpy":
