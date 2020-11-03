@@ -1,9 +1,9 @@
 
-import numpy as np
+
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import Ridge
-from sklearn.model_selection import GridSearchCV, train_test_split
+from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
+from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
 from thales.config.sources import validate_source
@@ -12,7 +12,7 @@ from thales.data import CSVLoader
 from thales.indicators import apply_df_indicator, apply_series_indicator, dataframe_indicators, series_indicators
 
 
-class Dataset:
+class MLDataset:
     """Class for building a dataset for machine learning.
     """
 
@@ -30,6 +30,13 @@ class Dataset:
 
         # Attrs storing data for machine learning tasks:
         self.ys = pd.DataFrame()
+        self.X = pd.DataFrame()
+        self.y = pd.Series()
+        self.train_X = pd.DataFrame()
+        self.train_y = pd.Series()
+        self.test_X = pd.DataFrame()
+        self.test_y = pd.Series()
+        self.val_ix = list()  # List of indices of validation sets.
         self.ml_data = dict()
         self.models = dict()
 
@@ -130,48 +137,53 @@ class Dataset:
             apply_df_indicator(df=df_copy, indicator=k, **v)
         self.df = df_copy.rename(columns={v: k for k, v in rename.items()})
 
-    def prepare_ml_data(self, y: str, scaler=StandardScaler,
-                        test_size: float = 0.2, random_state: int = 42):
-        """Prepare a dictionary of data for performing machine learning tasks.
+    def choose_y(self, y_col: str):
+        """Choose a column from the `ys` attribute to be the target feature, and
+        set the indices of the `X` and `y` attributes to only include notna rows
+        in both."""
+        y: pd.Series = self.ys[y_col].dropna()
+        self.X = self.df.loc[y.index].dropna()
+        self.y = y.loc[self.X.index]
+
+    def split_xy(self, test_size: float = 0.3, n_splits: int = 5):
+        """Create the training/test datasets.
+
         """
-        # Drop NaN rows from X and y, keeping union of indices:
-        y = self.ys[y].dropna()
-        X = self.df.dropna()
-        ix = sorted(set(y.index) & set(X.index))
-        y = y.loc[ix]
-        X = X.loc[ix]
+        assert (self.X.index == self.y.index).all()
+        assert 0 < test_size < 1, f"Invalid test_size, should be float between 0 and 1: {test_size}"
+        n = len(self.X.index)
+        test_n = int(test_size * n)
 
-        # Split data into test-train, and apply scalers:
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size,
-                                                            random_state=random_state, shuffle=True)
-        X_scaler, y_scaler = scaler(), scaler()
-        X_scaler.fit(X_train)
-        y_scaler.fit(pd.DataFrame(y_train))
-        X_train_s = pd.DataFrame(data=X_scaler.transform(X_train), columns=X_train.columns, index=X_train.index)
-        y_train_s = y_scaler.transform(pd.DataFrame(y_train))
-        y_train_s = pd.Series(y_train_s.flatten(), index=y_train.index, name=y_train.name)
-        X_test_s = pd.DataFrame(data=X_scaler.transform(X_test), columns=X_test.columns, index=X_test.index)
-        y_test_s = y_scaler.transform(pd.DataFrame(y_test))
-        y_test_s = pd.Series(y_test_s.flatten(), index=y_test.index, name=y_test.name)
-        self.ml_data = dict(y=y, X=X, X_train_s=X_train_s, y_train_s=y_train_s,
-                            X_test_s=X_test_s, y_test_s=y_test_s,
-                            X_scaler=X_scaler, y_scaler=y_scaler)
+        # Create the test_set attributes:
+        self.test_X = self.X.iloc[-test_n:].copy()
+        self.test_y = self.y.iloc[-test_n:].copy()
 
-    def ridge(self, scoring="r2", cv=5, **param_grid):
-        param_grid = {**dict(alpha=np.logspace(-5, 5, 10)), **param_grid}
-        X = self.ml_data["X_train_s"]
-        y = self.ml_data["y_train_s"]
-        estimator = Ridge(fit_intercept=False)
-        gs = GridSearchCV(estimator, param_grid, scoring=scoring, cv=cv)
-        gs.fit(X, y)
-        self.models["ridge"] = gs.best_estimator_
-        return gs
+        # Create the training/validation test sets:
+        self.train_X = self.X.iloc[:-test_n].copy()
+        self.train_y = self.y.iloc[:-test_n].copy()
+        ts = TimeSeriesSplit(n_splits=n_splits)
+        self.val_ix = list(ts.split(self.train_X))
 
-    def random_forest(self, cv=5, **param_grid):
-        X = self.ml_data["X_train_s"]
-        y = self.ml_data["y_train_s"]
-        estimator = RandomForestRegressor()
-        gs = GridSearchCV(estimator, param_grid, cv=cv)
-        gs.fit(X, y)
-        self.models["random_forest"] = gs.best_estimator_
-        return gs
+        # Final check to make sure all data in sets:
+        assert len(self.test_X) + len(self.val_ix[-1][0]) + len(self.val_ix[-1][1]) == len(self.X)
+
+
+class RandomForest:
+
+    def __init__(self, data: MLDataset, **params):
+        self.data = data
+        self.train_X = data.train_X
+        self.train_y = data.train_y
+
+        param_grid = {
+            "rf__n_estimators": params.get("n_estimators", [10, 50, 100]),
+            "rf__criterion": params.get("criterion", ["mse", "mae"]),
+            "rf__max_depth": params.get("max_depth", [2, 5, 10, None]),
+        }
+
+        pipe = Pipeline([
+            ("scale", StandardScaler()),
+            ("rf", RandomForestRegressor())
+        ])
+        self.gs = GridSearchCV(pipe, param_grid=param_grid, cv=self.data.val_ix)
+        self.gs.fit(self.train_X, self.train_y)
