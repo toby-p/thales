@@ -10,16 +10,16 @@ from .dataframe_indicators import *
 # they can be calculated directly from the raw price data.
 
 series_indicators = {
-    "sma": simple_moving_average,
-    "ema": exponential_moving_average,
-    "wma": weighted_moving_average,
-    "dema": double_exponential_moving_average,
-    "tema": triple_exponential_moving_average,
-    "trima": triangular_moving_average,
-    "er": kaufman_efficiency_ratio,
-    "kama": kaufman_adaptive_moving_average,
-    "macd": moving_average_convergence_divergence,
-    "rsi": relative_strength_index,
+    "sma": SMA,
+    "ema": EMA,
+    "wma": WMA,
+    "dema": DEMA,
+    "tema": TEMA,
+    "trima": TRIMA,
+    "ker": KER,
+    "kama": KAMA,
+    "macd": MACD,
+    "rsi": RSI,
 }
 
 

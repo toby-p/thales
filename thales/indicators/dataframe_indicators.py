@@ -4,7 +4,7 @@ multiple columns of price data (e.g. high & low) with a DateTime index."""
 import numpy as np
 import pandas as pd
 
-from thales.indicators.series_indicators import simple_moving_average
+from thales.indicators.series_indicators import SMA
 
 
 def typical_price(df: pd.DataFrame) -> pd.Series:
@@ -38,7 +38,7 @@ def fast_stochastic_oscillator(df: pd.DataFrame, n: int = 3,
         https://www.investopedia.com/terms/s/stochasticoscillator.asp
     """
     k = slow_stochastic_oscillator(df, n=k_n)
-    return simple_moving_average(k, n=n, validate=False).rename(f"stoch_f (n={n}, k_n={k_n})")
+    return SMA(k, n=n, validate=False).rename(f"stoch_f (n={n}, k_n={k_n})")
 
 
 def mesa_adaptive_moving_average(df: pd.DataFrame, fast_limit: float = 0.5,
