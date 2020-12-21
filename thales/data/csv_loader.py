@@ -45,7 +45,7 @@ class CSVLoader:
             new = pd.read_csv(fp, encoding="utf-8")
             dfs.append(new)
         df = pd.concat(dfs, sort=False)
-        df["DateTime"] = pd.to_datetime(df["DateTime"])
+        df["datetime"] = pd.to_datetime(df["datetime"])
         df = df.round(precision).drop_duplicates()
 
         # Convert field names to the standard names:

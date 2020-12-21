@@ -36,8 +36,10 @@ class Symbols:
         else:
             Path(fp).touch()
 
-    def get(self, filename: str = "master") -> list:
+    def get(self, filename: str = None) -> list:
         """Open a list of symbols associated to this instance's source."""
+        if filename is None:
+            filename = "master"
         fp = self.get_path(filename)
         with open(fp, "r") as stream:
             data = yaml.safe_load(stream)
