@@ -30,6 +30,8 @@ dataframe_indicators = {
     "stochf": fast_stochastic_oscillator,
 }
 
+all_indicators = {**series_indicators, **dataframe_indicators}
+
 
 def apply_series_indicator(df: pd.DataFrame, indicator: str,
                            target: str = "close", **kwargs):

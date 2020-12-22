@@ -1,15 +1,18 @@
 
 
+from itertools import product
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+from thales.config.exceptions import InvalidIndicator
 from thales.config.sources import validate_source
 from thales.config.utils import DEFAULT_SUBDIR
 from thales.data import CSVLoader
-from thales.indicators import apply_df_indicator, apply_series_indicator, dataframe_indicators, series_indicators
+from thales.indicators import all_indicators, apply_df_indicator, dataframe_indicators
+from thales.indicators.base import SeriesInSeriesOut, SeriesInDfOut
 
 
 class MLDataset:
@@ -21,7 +24,7 @@ class MLDataset:
         """Set parameters for loading data into the dataset."""
         # Data loading parameters:
         self.src = validate_source(src)
-        self.subdir = DEFAULT_SUBDIR if not subdir else subdir
+        self.subdir = DEFAULT_SUBDIR if subdir is None else subdir
         self.precision = precision
 
         # Attrs to store loaded data:
@@ -99,22 +102,46 @@ class MLDataset:
         self.df = pd.merge(self.df, df, left_index=True, right_index=True, how="outer")
         self._loaded[sym.upper()] = sorted(set(already_loaded + cols_to_load))
 
-    def apply_series_indicator(self, sym: str, ohlct: str = "c", **kwargs):
-        """Apply series indicators to `df` based on keyword arguments, where
-        keys are indicator names, and value are dicts of valid kwargs for that
-        indicator function. If no kwargs are passed all indicators are applied
-        with default values.
+    def apply_indicator(self, indicator: str, sym: str, ohlct: str = "c",
+                        **params):
+        try:
+            cls = all_indicators[indicator.lower().strip()]
+        except KeyError:
+            raise (InvalidIndicator(indicator))
+        if issubclass(cls, SeriesInSeriesOut) or issubclass(cls, SeriesInDfOut):
+            col_name = self._make_column_name(sym, ohlct)
+            s = self.df[col_name]
+            ti = cls(s, **params)
+        else:
+            raise NotImplementedError(f"`apply_indicator` not implemented for: {cls}")
 
-        Args:
-            sym: which symbol's column to apply indicators to.
-            ohlct: column to apply indicators to from o/h/l/c/t.
-        """
-        if not kwargs:
-            kwargs = {k: None for k in series_indicators.keys()}
-        for k, v in kwargs.items():
-            if not v:
-                v = dict()
-            apply_series_indicator(df=self.df, indicator=k, target=self._make_column_name(sym, ohlct), **v)
+        if isinstance(ti, pd.Series):
+            if ti.name not in self.df.columns:
+                self.df[ti.name] = ti
+        elif isinstance(ti, pd.DataFrame):
+            new_cols = set(ti.columns) - set(self.df.columns)
+            if new_cols:
+                self.df = pd.merge(self.df, ti[new_cols], left_index=True, right_index=True, how="outer")
+
+    @staticmethod
+    def _permutations(**params) -> pd.DataFrame:
+        return pd.DataFrame(list(product(*params.values())), columns=params.keys())
+
+    def iterate_indicator_params(self, indicator: str, sym: str,
+                                 ohlct: str = "c", **params):
+        """Apply a technical indicator multiple times with different parameters,
+        by passing key-value pairs of parameter name and lists of values. If no
+        parameters are passed, all combinations in the indicator's `parameters`
+        attribute will be iterated."""
+        try:
+            cls = all_indicators[indicator.lower().strip()]
+        except KeyError:
+            raise (InvalidIndicator(indicator))
+        if not params:
+            params = cls.parameters
+        param_perms = self._permutations(**params)
+        for _, row in param_perms.iterrows():
+            self.apply_indicator(indicator, sym=sym, ohlct=ohlct, **row)
 
     def apply_dataframe_indicator(self, sym: str, **kwargs):
         """Apply DataFrame indicators to `df` based on keyword arguments, where

@@ -11,15 +11,19 @@ def custom_format_warning(msg, *args, **kwargs):
 warnings.formatwarning = custom_format_warning
 
 
-class InvalidApiCall(Exception):
+class ThalesException(Exception):
     pass
 
 
-class RateLimitExceeded(Exception):
+class InvalidApiCall(ThalesException):
     pass
 
 
-class InvalidSource(Exception):
+class RateLimitExceeded(ThalesException):
+    pass
+
+
+class InvalidSource(ThalesException):
     def __init__(self, src):
         self.src = src
 
@@ -27,7 +31,7 @@ class InvalidSource(Exception):
         return f"Invalid data source: {self.src}"
 
 
-class InvalidPriceColumn(Exception):
+class InvalidPriceColumn(ThalesException):
     def __init__(self, col):
         self.col = col
 
@@ -35,7 +39,7 @@ class InvalidPriceColumn(Exception):
         return f"Invalid price column: {self.col}"
 
 
-class MissingRequiredColumns(Exception):
+class MissingRequiredColumns(ThalesException):
     def __init__(self, *col):
         self.col = col
 
@@ -43,7 +47,7 @@ class MissingRequiredColumns(Exception):
         return f"Missing required columns: {', '.join([str(c) for c in sorted(self.col)])}"
 
 
-class InvalidIndicator(Exception):
+class InvalidIndicator(ThalesException):
     def __init__(self, indicator):
         self.indicator = indicator
 
