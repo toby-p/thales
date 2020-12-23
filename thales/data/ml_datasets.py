@@ -1,6 +1,7 @@
 
 
 from itertools import product
+import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import GridSearchCV, TimeSeriesSplit
@@ -11,7 +12,7 @@ from thales.config.exceptions import InvalidIndicator
 from thales.config.sources import validate_source
 from thales.config.utils import DEFAULT_SUBDIR
 from thales.data import CSVLoader
-from thales.indicators import all_indicators, apply_df_indicator, dataframe_indicators
+from thales.indicators import all_indicators, apply_df_indicator, dataframe_indicators, series_indicators
 from thales.indicators.base import SeriesInSeriesOut, SeriesInDfOut
 
 
@@ -141,7 +142,16 @@ class MLDataset:
             params = cls.parameters
         param_perms = self._permutations(**params)
         for _, row in param_perms.iterrows():
-            self.apply_indicator(indicator, sym=sym, ohlct=ohlct, **row)
+            try:
+                self.apply_indicator(indicator, sym=sym, ohlct=ohlct, **row)
+            except AssertionError:
+                continue
+
+    def apply_all(self, sym: str, ohlct: str = "c"):
+        """Apply all parameter permutations for all technical indicators for the
+        given symbol."""
+        for indicator in series_indicators.keys():
+            self.iterate_indicator_params(indicator, sym, ohlct)
 
     def apply_dataframe_indicator(self, sym: str, **kwargs):
         """Apply DataFrame indicators to `df` based on keyword arguments, where
@@ -152,6 +162,7 @@ class MLDataset:
         Args:
             sym: which symbol's column to apply indicators to.
         """
+        raise NotImplementedError()
         if not kwargs:
             kwargs = {k: None for k in dataframe_indicators.keys()}
         kwargs.pop("tp", None)  # Typical price isn't really an indicator.
@@ -193,6 +204,20 @@ class MLDataset:
 
         # Final check to make sure all data in sets:
         assert len(self.test_X) + len(self.val_ix[-1][0]) + len(self.val_ix[-1][1]) == len(self.X)
+
+    def plot_indicator(self, indicator: str, sym: str, ohlct: str = "c",
+                       n_recent: int = 200, plot_price: bool = True):
+        """Quickly plot columns from `df` for a specific indicator."""
+        col = self._make_column_name(sym, ohlct)
+        indicator = indicator.upper().strip()
+        columns = [c for c in self.df.columns if (indicator in c) and (col in c)]
+        fig, ax = plt.subplots(figsize=(12, 10))
+        for c in columns:
+            ax.plot(self.df[c].iloc[-n_recent:], label=c)
+        if plot_price:
+            ax.plot(self.df[col].iloc[-n_recent:], label=col)
+        ax.legend()
+        return fig
 
 
 class RandomForest:

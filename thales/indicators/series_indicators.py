@@ -19,8 +19,9 @@ class SMA(SeriesInSeriesOut):
 
     parameters = {"n": MA_TYPICAL_N}
 
-    def __init__(self, s: pd.Series, n: int = 5, **kwargs):
-        super().__init__(s, n=n, indicator_name=f"SMA (n={n:.0f})", **kwargs)
+    def __init__(self, s: pd.Series, n: int = 5, as_percent_diff: bool = True,
+                 **kwargs):
+        super().__init__(s, n=n, indicator_name=f"SMA (n={n:.0f})", as_percent_diff=as_percent_diff, **kwargs)
         self.n = n
 
     def apply_indicator(self, s: pd.Series, n: int = 5):
@@ -39,14 +40,15 @@ class EMA(SeriesInSeriesOut):
     >>>     ema.append(alpha*y_i + (1-alpha) * prev_s)
     """
 
-    parameters = {"alpha": np.arange(0.05, 1, 0.05)}
+    parameters = {"alpha": [0.05, 0.1, 0.2, 0.5, 0.95]}
 
     def __init__(self, s: pd.Series, alpha: float = None,
-                 span: float = None, **kwargs):
+                 span: float = None, as_percent_diff: bool = True, **kwargs):
         if not alpha and not span:
             span = len(s)
         label, value = ("alpha", alpha) if alpha else ("span", span)
-        super().__init__(s, alpha=alpha, span=span, indicator_name=f"EMA ({label}={value})", **kwargs)
+        super().__init__(s, alpha=alpha, span=span, indicator_name=f"EMA ({label}={value})",
+                         as_percent_diff=as_percent_diff, **kwargs)
         self.alpha = alpha
         self.span = span
 
@@ -60,8 +62,9 @@ class WMA(SeriesInSeriesOut):
 
     parameters = {"n": MA_TYPICAL_N}
 
-    def __init__(self, s: pd.Series, n: int = 5, **kwargs):
-        super().__init__(s, n=n, indicator_name=f"WMA (n={n})", **kwargs)
+    def __init__(self, s: pd.Series, n: int = 5, as_percent_diff: bool = True,
+                 **kwargs):
+        super().__init__(s, n=n, indicator_name=f"WMA (n={n})", as_percent_diff=as_percent_diff, **kwargs)
         self.n = n
 
     @staticmethod
@@ -84,18 +87,19 @@ class DEMA(SeriesInSeriesOut):
     parameters = {"alpha": np.arange(0.05, 1, 0.05)}
 
     def __init__(self, s: pd.Series, alpha: float = None,
-                 span: float = None, **kwargs):
+                 span: float = None, as_percent_diff: bool = True, **kwargs):
         if not alpha and not span:
             span = len(s)
         label, value = ("alpha", alpha) if alpha else ("span", span)
-        super().__init__(s, alpha=alpha, span=span, indicator_name=f"DEMA ({label}={value})", **kwargs)
+        super().__init__(s, alpha=alpha, span=span, indicator_name=f"DEMA ({label}={value})",
+                         as_percent_diff=as_percent_diff, **kwargs)
         self.alpha = alpha
         self.span = span
 
     def apply_indicator(self, s: pd.Series, alpha: float = None,
                         span: float = None):
-        ema = EMA(s, alpha=alpha, span=span, validate=False)
-        return (2 * ema) - EMA(ema, alpha=alpha, span=span, validate=False)
+        ema = EMA(s, alpha=alpha, span=span, validate=False, as_percent_diff=False)
+        return (2 * ema) - EMA(ema, alpha=alpha, span=span, validate=False, as_percent_diff=False)
 
 
 class TEMA(SeriesInSeriesOut):
@@ -109,19 +113,21 @@ class TEMA(SeriesInSeriesOut):
     parameters = {"alpha": np.arange(0.05, 1, 0.05)}
 
     def __init__(self, s: pd.Series, alpha: float = None,
-                 span: float = None, **kwargs):
+                 span: float = None, as_percent_diff: bool = True, **kwargs):
         if not alpha and not span:
             span = len(s)
         label, value = ("alpha", alpha) if alpha else ("span", span)
-        super().__init__(s, alpha=alpha, span=span, indicator_name=f"TEMA ({label}={value})", **kwargs)
+        super().__init__(s, alpha=alpha, span=span, indicator_name=f"TEMA ({label}={value})",
+                         as_percent_diff=as_percent_diff, **kwargs)
         self.alpha = alpha
         self.span = span
 
     def apply_indicator(self, s: pd.Series, alpha: float = None,
                         span: float = None):
-        ema = EMA(s, alpha=alpha, span=span, validate=False)
-        return (3 * ema) - (3 * EMA(ema, alpha, span, validate=False)) + \
-               EMA(EMA(ema, alpha, span, validate=False), alpha, span, validate=False)
+        ema = EMA(s, alpha=alpha, span=span, validate=False, as_percent_diff=False)
+        return (3 * ema) - (3 * EMA(ema, alpha, span, validate=False, as_percent_diff=False)) + \
+               EMA(EMA(ema, alpha, span, validate=False, as_percent_diff=False),
+                   alpha, span, validate=False, as_percent_diff=False)
 
 
 class TRIMA(SeriesInSeriesOut):
@@ -129,19 +135,20 @@ class TRIMA(SeriesInSeriesOut):
 
     parameters = {"n": MA_TYPICAL_N}
 
-    def __init__(self, s: pd.Series, n: int = 5, **kwargs):
-        super().__init__(s, n=n, indicator_name=f"TRIMA (n={n})", **kwargs)
+    def __init__(self, s: pd.Series, n: int = 5, as_percent_diff: bool = True,
+                 **kwargs):
+        super().__init__(s, n=n, indicator_name=f"TRIMA (n={n})", as_percent_diff=as_percent_diff, **kwargs)
         self.n = n
 
     def apply_indicator(self, s: pd.Series, n: int = 5):
-        sma = SMA(s, n=n, validate=False).dropna()
-        return SMA(sma, n=n)
+        sma = SMA(s, n=n, validate=False, as_percent_diff=False).dropna()
+        return SMA(sma, n=n, as_percent_diff=False)
 
 
 class KER(SeriesInSeriesOut):
     """Kaufman Efficiency Ratio."""
 
-    parameters = {"n": MA_TYPICAL_N}
+    parameters = {"n": [10, 25, 50, 100, 250, 500]}
 
     def __init__(self, s: pd.Series, n: int = 5, **kwargs):
         super().__init__(s, n=n, indicator_name=f"KER (n={n})", **kwargs)
@@ -158,13 +165,15 @@ class KAMA(SeriesInSeriesOut):
     See: https://school.stockcharts.com/doku.php?id=technical_indicators:kaufman_s_adaptive_moving_average
     """
 
-    # parameters = {"n": MA_TYPICAL_N}  # TODO
+    parameters = {"er": KER.parameters["n"], "ema_fast": [2, 5, 10, 20], "ema_slow": [10, 50, 100, 200],
+                  "n": [5, 20, 100, 200]}
 
     def __init__(self, s: pd.Series, er: int = 10,
                  ema_fast: int = 2, ema_slow: int = 30,
-                 n: int = 20, **kwargs):
+                 n: int = 20, as_percent_diff: bool = True, **kwargs):
         name = f"KAMA (er={er}, ema_fast={ema_fast}, ema_slow={ema_slow}, n={n})"
-        super().__init__(s, er=er, ema_fast=ema_fast, ema_slow=ema_slow, n=n, indicator_name=name, **kwargs)
+        super().__init__(s, er=er, ema_fast=ema_fast, ema_slow=ema_slow, n=n, indicator_name=name,
+                         as_percent_diff=as_percent_diff, **kwargs)
         self.er = er
         self.ema_fast = ema_fast
         self.ema_slow = ema_slow
@@ -181,14 +190,14 @@ class KAMA(SeriesInSeriesOut):
             ema_slow: number of periods for slow EMA constant.
             n: number of periods for SMA calculation for first KAMA value.
         """
-
         assert n >= er, f"`n` must be greater/equal to `er`."
+        assert ema_slow > ema_fast, f"`ema_slow` timeframe must be longer than `ema_fast`"
         s_name = s.name
         calc_df = pd.DataFrame(s)
         calc_df["e_ratio"] = KER(s, n=er, validate=False)
         fast_c, slow_c = 2/(ema_fast+1), 2/(ema_slow+1)
         calc_df["smoothing_constant"] = (calc_df["e_ratio"] * (fast_c-slow_c) + slow_c) ** 2
-        sma = SMA(s, n=n, validate=False).dropna()
+        sma = SMA(s, n=n, validate=False, as_percent_diff=False).dropna()
         calc_df = calc_df.loc[sma.index[1:]]
         kama = list()
         kama.append(sma.iloc[0])  # First value is sma.
@@ -203,7 +212,7 @@ class MACD(SeriesInDfOut):
         https://www.investopedia.com/articles/forex/05/macddiverge.asp
     """
 
-    # parameters = {"n": MA_TYPICAL_N} # TODO
+    parameters = {"p_fast": [5, 12, 25, 50, 100], "p_slow": [10, 26, 50, 100, 200], "signal": [2, 9, 25, 50, 100]}
 
     def __init__(self, s: pd.Series, p_fast: int = 12, p_slow: int = 26,
                  signal: int = 9, **kwargs):
@@ -214,12 +223,12 @@ class MACD(SeriesInDfOut):
 
     def apply_indicator(self, s: pd.Series, p_fast: int = 12, p_slow: int = 26,
                         signal: int = 9):
-        ema_fast = EMA(s, span=p_fast, validate=False)
-        ema_slow = EMA(s, span=p_slow, validate=False)
+        ema_fast = EMA(s, span=p_fast, validate=False, as_percent_diff=False)
+        ema_slow = EMA(s, span=p_slow, validate=False, as_percent_diff=False)
         macd_name = f"{s.name} - MACD (p_fast={p_fast}, p_slow={p_slow})"
         macd = (ema_fast - ema_slow).rename(macd_name)
         signal_name = f"{s.name} - MACD_signal (p_fast={p_fast}, p_slow={p_slow}, signal={signal})"
-        macd_signal = EMA(macd, span=signal, validate=False).rename(signal_name)
+        macd_signal = EMA(macd, span=signal, validate=False, as_percent_diff=False).rename(signal_name)
         return pd.concat([macd, macd_signal], axis=1)
 
 
@@ -237,7 +246,7 @@ class RSI(SeriesInSeriesOut):
     def apply_indicator(self, s: pd.Series, n: int = 14):
         up, down = s.diff(1), s.diff(1)
         up.loc[(up < 0)], down.loc[(down > 0)] = 0, 0
-        up_ewm = EMA(up, span=n, validate=False)
-        down_ewm = EMA(down.abs(), span=n, validate=False)
+        up_ewm = EMA(up, span=n, validate=False, as_percent_diff=False)
+        down_ewm = EMA(down.abs(), span=n, validate=False, as_percent_diff=False)
         rsi = up_ewm / (up_ewm + down_ewm)
         return rsi
