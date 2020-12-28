@@ -1,18 +1,34 @@
 """Indicators that can be calculated directly from a single Pandas.Series of
 price data with a DateTime index."""
 
-__all__ = ["DEMA", "EMA", "KAMA", "KER", "MACD", "RSI", "SMA", "STOCH", "STOCHF", "TEMA", "TRIMA", "WMA"]
+__all__ = ["DEMA", "EMA", "KAMA", "KER", "MACD", "MESA", "RSI", "SMA", "STOCH", "STOCHF", "TEMA", "TP", "TRIMA", "WMA"]
 
 import numpy as np
 import pandas as pd
 from scipy.signal import convolve
 
 from thales.config.utils import OHLC
-from thales.indicators.base import DataFrameInSeriesOut, SeriesInSeriesOut, SeriesInDfOut
+from thales.indicators.base import DataFrameInDataFrameOut, DataFrameInSeriesOut, SeriesInSeriesOut, \
+    SeriesInDataFrameOut
 
 
 # Typical parameters for number of time periods in moving average indicators:
 MA_TYPICAL_N = list(range(2, 11, 1)) + list(range(20, 81, 20)) + list(range(100, 1001, 100))
+
+
+class TP(DataFrameInSeriesOut):
+    """`Typical Price` average of low, high, and open prices. Assumes prices
+    have already been adjusted based on adjusted close."""
+
+    def __init__(self, df: pd.DataFrame, sym: str = None, **kwargs):
+        super().__init__(df=df, sym=sym, ohlc=kwargs.pop("ohlc", OHLC(sym)),
+                         indicator_name="TP", **kwargs)
+
+    def apply_indicator(self, df: pd.DataFrame, ohlc: OHLC):
+        if isinstance(df.index, pd.DatetimeIndex):
+            return pd.Series(df[[ohlc.low, ohlc.high, ohlc.open]].sum(axis=1) / 3)
+        else:
+            return pd.Series(df.set_index("datetime")[[ohlc.low, ohlc.high, ohlc.open]].sum(axis=1) / 3)
 
 
 class SMA(SeriesInSeriesOut):
@@ -208,7 +224,7 @@ class KAMA(SeriesInSeriesOut):
         return pd.Series(kama[1:], index=calc_df.index)
 
 
-class MACD(SeriesInDfOut):
+class MACD(SeriesInDataFrameOut):
     """Moving average convergence-divergence. See:
         https://www.investopedia.com/articles/forex/05/macddiverge.asp
     """
@@ -295,3 +311,135 @@ class STOCHF(DataFrameInSeriesOut):
         return SMA(k, n=n, validate=False, as_percent_diff=False)
 
 
+class MESA(DataFrameInDataFrameOut):
+    """MESA Adaptive Moving Average, see notes at:
+        https://www.mesasoftware.com/papers/mama.pdf
+        https://www.tradingpedia.com/forex-trading-indicators/ehlers-mesa-adaptive-moving-average
+
+    Returns a DataFrame containing the mama and fama calculation results.
+
+    Adapted from:
+        https://github.com/codersnotepad/techind/blob/master/techind/mesaAdaptiveMovingAverage.py
+    """
+
+    parameters = {"fast_limit": [0.5], "slow_limit": [0.05]}
+
+    def __init__(self, df: pd.DataFrame, fast_limit: float = 0.5,
+                 slow_limit: float = 0.05, sym: str = None, **kwargs):
+        super().__init__(df=df, sym=sym, ohlc=kwargs.pop("ohlc", OHLC(sym)),
+                         fast_limit=fast_limit, slow_limit=slow_limit, **kwargs)
+        self.fast_limit = fast_limit
+        self.slow_limit = slow_limit
+
+    def apply_indicator(self, df: pd.DataFrame, ohlc: OHLC,
+                        fast_limit: float = 0.5, slow_limit: float = 0.05):
+        high, low = df[ohlc.high], df[ohlc.low]
+
+        data = (high + low) / 2
+        s = np.zeros(len(data))  # smooth
+        d = np.zeros(len(data))  # detrenders
+        p = np.zeros(len(data))  # periods
+        sp = np.zeros(len(data))  # smoothed periods
+        ph = np.zeros(len(data))  # phases
+        q1 = np.zeros(len(data))  # q1
+        q2 = np.zeros(len(data))  # q2
+        i1 = np.zeros(len(data))  # i1
+        i2 = np.zeros(len(data))  # i2
+        re = np.zeros(len(data))  # re
+        im = np.zeros(len(data))  # im
+
+        mama = np.zeros(len(data))  # mama ouput.
+        fama = np.zeros(len(data))  # fama output.
+
+        # Calculate mama and fama:
+        for i in range(5, len(data), 1):
+
+            s[i] = (4 * data[i] + 3 * data[i - 1] + 2 * data[i - 2] + data[i - 3]) / 10
+            d[i] = (
+                           0.0962 * s[i]
+                           + 0.5769 * s[i - 2]
+                           - 0.5769 * s[i - 4]
+                           - 0.0962 * s[i - 6]
+                   ) * (0.075 * p[i - 1] + 0.54)
+
+            # Compute InPhase and Quadrature components:
+            q1[i] = (
+                            0.0962 * d[i]
+                            + 0.5769 * d[i - 2]
+                            - 0.5769 * d[i - 4]
+                            - 0.0962 * d[i - 6]
+                    ) * (0.075 * p[i - 1] + 0.54)
+            i1[i] = d[i - 3]
+
+            # Advance the phase of I1 and Q1 by 90 degrees:
+            ji = (
+                         0.0962 * i1[i - i]
+                         + 0.5769 * i1[i - 2]
+                         - 0.5769 * i1[i - 4]
+                         - 0.0962 * i1[i - 6]
+                 ) * (0.075 * p[i - 1] + 0.54)
+            jq = (
+                         0.0962 * q1[i - i]
+                         + 0.5769 * q1[i - 2]
+                         - 0.5769 * q1[i - 4]
+                         - 0.0962 * q1[i - 6]
+                 ) * (0.075 * p[i - 1] + 0.54)
+
+            # Phasor addition for 3 bar averaging:
+            _i2 = i1[i] - jq
+            _q2 = q1[i] + ji
+
+            # Smooth the I and Q components before applying the discriminator:
+            i2[i] = 0.2 * _i2 + 0.8 * i2[i]
+            q2[i] = 0.2 * _q2 + 0.8 * q2[i]
+
+            # Homodyne Discriminator:
+            _re = i2[i] * i2[i - 1] + q2[i] * q2[i - 1]
+            _im = i2[i] * q2[i - 1] + q2[i] * i2[i - 1]
+            re[i] = 0.2 * _re + 0.8 * re[i - 1]
+            im[i] = 0.2 * _im + 0.8 * im[i - 1]
+
+            # Set period value:
+            period = 0
+            if _im != 0 and _re != 0:
+                period = 360 / np.arctan(_im / _re)
+            if period > 1.5 * p[-1]:
+                period = 1.5 * p[i - 1]
+            if period < 0.67 * p[i - 1]:
+                period = 0.67 * p[i - 1]
+            if period < 6:
+                period = 6
+            if period > 50:
+                period = 50
+            p[i] = 0.2 * period + 0.8 * p[i - 1]
+            sp[i] = 33 * p[i - 1] + 0.67 * sp[i - 1]
+
+            if i1[i] != 0:
+                ph[i] = np.arctan(q1[i] / i1[i])
+
+            # Delta phase:
+            delta_phase = ph[i - 1] - ph[i]
+            if delta_phase < 1:
+                delta_phase = 1
+
+            # Alpha:
+            alpha = fast_limit / delta_phase
+            if alpha < slow_limit:
+                alpha = slow_limit
+
+            # Add to output using EMA formula:
+            mama[i] = alpha * data[i] + (1 - alpha) * mama[i - 1]
+            fama[i] = 0.5 * alpha * mama[i] + (1 - 0.5 * alpha) * fama[i - 1]
+
+        # remove the mama and fama warm-up values
+        #     for i in range(warmUpPeriod + 1):
+        #         if i <= warmUpPeriod:
+        #             mama[i] = np.nan
+        #             fama[i] = np.nan
+
+        ix = df.index if isinstance(df.index, pd.DatetimeIndex) else df["datetime"]
+
+        # Name columns:
+        mama_name = f"MAMA (fast_limit={fast_limit:.3f}, slow_limit={slow_limit:.3f})"
+        fama_name = f"FAMA (fast_limit={fast_limit:.3f}, slow_limit={slow_limit:.3f})"
+        return pd.DataFrame(data={mama_name: mama, fama_name: fama}, index=ix)

@@ -1,5 +1,4 @@
 
-
 from itertools import product
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -12,8 +11,9 @@ from thales.config.exceptions import InvalidIndicator
 from thales.config.sources import validate_source
 from thales.config.utils import DEFAULT_SUBDIR
 from thales.data import CSVLoader
-from thales.indicators import all_indicators, apply_df_indicator, dataframe_indicators
-from thales.indicators.base import SeriesInSeriesOut, SeriesInDfOut
+from thales.indicators import ALL_INDICATORS
+from thales.indicators.base import DataFrameInDataFrameOut, DataFrameInSeriesOut, SeriesInSeriesOut, \
+    SeriesInDataFrameOut
 
 
 class MLDataset:
@@ -86,7 +86,7 @@ class MLDataset:
 
         Args:
             sym: which symbol to load data for.
-            col: which columns to load from o/h/l/c/t.
+            col: which columns to load from o/h/l/c.
         """
         assert col, "Must pass at least 1 col arg."
         cols_to_load = [s[0].lower() for s in col]
@@ -96,8 +96,6 @@ class MLDataset:
             return
         df = CSVLoader.load_by_symbol(sym, src=self.src, subdir=self.subdir, precision=self.precision)
         df = df.set_index("datetime").sort_index()
-        if "t" in cols_to_load:  # Add typical price:
-            apply_df_indicator(df, "tp")
         df = df[self.full_column_name(*col)]
         df = df.rename(columns={c: f"{sym}_{c}" for c in df.columns})
         self.df = pd.merge(self.df, df, left_index=True, right_index=True, how="outer")
@@ -106,13 +104,15 @@ class MLDataset:
     def apply_indicator(self, indicator: str, sym: str, ohlct: str = "c",
                         **params):
         try:
-            cls = all_indicators[indicator.lower().strip()]
+            cls = ALL_INDICATORS[indicator.lower().strip()]
         except KeyError:
             raise (InvalidIndicator(indicator))
-        if issubclass(cls, SeriesInSeriesOut) or issubclass(cls, SeriesInDfOut):
+        if issubclass(cls, SeriesInSeriesOut) or issubclass(cls, SeriesInDataFrameOut):
             col_name = self._make_column_name(sym, ohlct)
             s = self.df[col_name]
             ti = cls(s, **params)
+        elif issubclass(cls, DataFrameInSeriesOut) or issubclass(cls, DataFrameInDataFrameOut):
+            ti = cls(df=self.df, sym=sym, pc_ratio_col=ohlct, **params)
         else:
             raise NotImplementedError(f"`apply_indicator` not implemented for: {cls}")
 
@@ -135,9 +135,9 @@ class MLDataset:
         parameters are passed, all combinations in the indicator's `parameters`
         attribute will be iterated."""
         try:
-            cls = all_indicators[indicator.lower().strip()]
+            cls = ALL_INDICATORS[indicator.lower().strip()]
         except KeyError:
-            raise (InvalidIndicator(indicator))
+            raise InvalidIndicator(indicator)
         if not params:
             params = cls.parameters
         param_perms = self._permutations(**params)
@@ -150,30 +150,8 @@ class MLDataset:
     def apply_all(self, sym: str, ohlct: str = "c"):
         """Apply all parameter permutations for all technical indicators for the
         given symbol."""
-        for indicator in series_indicators.keys():
+        for indicator in ALL_INDICATORS.keys():
             self.iterate_indicator_params(indicator, sym, ohlct)
-
-    def apply_dataframe_indicator(self, sym: str, **kwargs):
-        """Apply DataFrame indicators to `df` based on keyword arguments, where
-        keys are indicator names, and value are dicts of valid kwargs for that
-        indicator function. If no kwargs are passed all indicators are applied
-        with default values.
-
-        Args:
-            sym: which symbol's column to apply indicators to.
-        """
-        raise NotImplementedError()
-        if not kwargs:
-            kwargs = {k: None for k in dataframe_indicators.keys()}
-        kwargs.pop("tp", None)  # Typical price isn't really an indicator.
-        full_cols = self.full_column_name("o", "h", "l", "c")
-        rename = {f"{sym.upper()}_{c}": c for c in full_cols}
-        df_copy = self.df.rename(columns=rename)
-        for k, v in kwargs.items():
-            if not v:
-                v = dict()
-            apply_df_indicator(df=df_copy, indicator=k, **v)
-        self.df = df_copy.rename(columns={v: k for k, v in rename.items()})
 
     def choose_y(self, y_col: str):
         """Choose a column from the `ys` attribute to be the target feature, and

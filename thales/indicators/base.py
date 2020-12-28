@@ -65,7 +65,7 @@ class SeriesInSeriesOut(pd.Series):
         elif as_ratio:
             output = convert_to_ratio(s, output)
         super().__init__(data=output)
-        self.name = " - ".join([s for s in [s.name, indicator_name] if s])
+        self.name = "_".join([s for s in [s.name, indicator_name] if s])
 
     @staticmethod
     def apply_indicator(s: pd.Series, **kwargs):
@@ -73,7 +73,7 @@ class SeriesInSeriesOut(pd.Series):
         return s
 
 
-class SeriesInDfOut(pd.DataFrame):
+class SeriesInDataFrameOut(pd.DataFrame):
     """Subclass of Pandas.DataFrame which takes a single input feature (i.e. a
     Pandas.Series of price data) and returns a technical indicator as a
     Pandas.DataFrame."""
@@ -116,10 +116,9 @@ class DataFrameInSeriesOut(pd.Series):
     Pandas.DataFrame of OHLC price data) and returns a technical indicator as a
     Pandas.Series."""
 
-    # Each indicator stores parameters with a range of typical values
-    # for the keyword arguments in the init call:
-    short_params = dict()
-    long_params = dict()
+    # For each indicator `parameters` stores a range of typical parameter values
+    # for the indicator-specific keyword argument in the init call:
+    parameters = dict()
 
     def __init__(self, df: pd.DataFrame, sym: str = None,
                  validate: bool = True, as_percent_diff: bool = False,
@@ -150,9 +149,57 @@ class DataFrameInSeriesOut(pd.Series):
             s = df[ohlc[pc_ratio_col]]
             output = convert_to_ratio(s, output)
         super().__init__(data=output)
-        self.name = " - ".join([s for s in [sym, indicator_name] if s])
+        self.name = "_".join([s for s in [ohlc.sym, indicator_name] if s])
 
     @staticmethod
     def apply_indicator(df: pd.DataFrame, ohlc: OHLC, **kwargs):
         """Method applies indicator logic in subclasses."""
         return pd.Series(df[ohlc["c"]])
+
+
+class DataFrameInDataFrameOut(pd.DataFrame):
+    """Subclass of Pandas.DataFrame which takes multiple input feature (i.e. a
+    Pandas.DataFrame of OHLC price data) and returns a technical indicator as a
+    Pandas.DataFrame."""
+
+    # For each indicator `parameters` stores a range of typical parameter values
+    # for the indicator-specific keyword argument in the init call:
+    parameters = dict()
+
+    def __init__(self, df: pd.DataFrame, sym: str = None, validate: bool = True,
+                 as_percent_diff: bool = False, as_ratio: bool = False,
+                 pc_ratio_col: str = "c", ohlc: OHLC = None, **kwargs):
+        """Takes a multi-dimensional input DataFrame and converts it to an
+        output pandas.Series using the logic in the `apply_indicator` method.
+
+        Args:
+            df: input OHLC price data.
+            sym: symbol name (used to construct price columns - e.g.
+                `AAPL_close` instead of `close`).
+            validate: if True, validate input to ensure correct data format.
+            as_percent_diff: if True apply `convert_to_percent_diff` to output.
+            as_ratio: if True apply `convert_to_ratio` to output.
+            pc_ratio_col: used to specify which OHLC price column to use as the
+                denominator if either `as_percent_diff` or `as_ratio` is True.
+        """
+        if ohlc is None:
+            ohlc = OHLC(sym)
+        if validate:
+            df = validate_dataframe(df)
+        output = self.apply_indicator(df=df, ohlc=ohlc, **kwargs)
+        if as_percent_diff:
+            s = df[ohlc[pc_ratio_col]]
+            for col in output.columns:
+                output[col] = convert_to_percent_diff(s, output[col])
+        elif as_ratio:
+            s = df[ohlc[pc_ratio_col]]
+            for col in output.columns:
+                output[col] = convert_to_ratio(s, output[col])
+        super().__init__(data=output)
+        if ohlc.sym is not None:
+            self.rename(columns={c: f"{ohlc.sym}_{c}" for c in self.columns}, inplace=True)
+
+    @staticmethod
+    def apply_indicator(df: pd.DataFrame, ohlc: OHLC, **kwargs):
+        """Method applies indicator logic in subclasses."""
+        return pd.DataFrame(df[ohlc["c"]])
