@@ -37,6 +37,36 @@ MINUTE_FORMAT = "%Y_%m_%d %H;%M"
 DATE_FORMATS = {"day": DAY_FORMAT, "second": SECOND_FORMAT, "milisecond": MILISECOND_FORMAT, "minute": MINUTE_FORMAT}
 
 
+class OHLC:
+    """Construct standard OHLC column names."""
+
+    def __init__(self, sym: str = None):
+        if sym is not None:
+            self.sym = sym.strip().upper()
+            self.open = f"{self.sym}_open"
+            self.low = f"{self.sym}_low"
+            self.high = f"{self.sym}_high"
+            self.close = f"{self.sym}_close"
+        else:
+            self.sym = sym
+            self.open = "open"
+            self.low = "low"
+            self.high = "high"
+            self.close = "close"
+
+        self.ohlc = dict(o=self.open, h=self.high, l=self.low, c=self.close)
+
+        # List of column names to select all OHLC columns from a DataFrame:
+        self.columns = [self.open, self.high, self.low, self.close]
+
+        # Dict to apply to DataFrame columns to rename to standard labels:
+        self.rename = {self.ohlc[c[0]]: c for c in PRICE_COLS}
+
+    def __getitem__(self, key: str):
+        """Get full OHLC column name by passing letter key, e.g. `c`."""
+        return self.ohlc[key.strip().lower()[0]]
+
+
 def parse_datetime(dt: object, **kwargs) -> datetime.datetime:
     """Take a string or date/datetime object and return a datetime.datetime if
     possible."""

@@ -1,13 +1,14 @@
 """Indicators that can be calculated directly from a single Pandas.Series of
 price data with a DateTime index."""
 
-__all__ = ["DEMA", "EMA", "KAMA", "KER", "MACD", "RSI", "SMA", "TEMA", "TRIMA", "WMA"]
+__all__ = ["DEMA", "EMA", "KAMA", "KER", "MACD", "RSI", "SMA", "STOCH", "STOCHF", "TEMA", "TRIMA", "WMA"]
 
 import numpy as np
 import pandas as pd
 from scipy.signal import convolve
 
-from thales.indicators.base import SeriesInSeriesOut, SeriesInDfOut
+from thales.config.utils import OHLC
+from thales.indicators.base import DataFrameInSeriesOut, SeriesInSeriesOut, SeriesInDfOut
 
 
 # Typical parameters for number of time periods in moving average indicators:
@@ -250,3 +251,47 @@ class RSI(SeriesInSeriesOut):
         down_ewm = EMA(down.abs(), span=n, validate=False, as_percent_diff=False)
         rsi = up_ewm / (up_ewm + down_ewm)
         return rsi
+
+
+class STOCH(DataFrameInSeriesOut):
+    """'Slow' Stochastic oscillator, also known as '%K' see:
+        https://www.investopedia.com/terms/s/stochasticoscillator.asp
+    """
+
+    parameters = {"n": MA_TYPICAL_N}
+
+    def __init__(self, df: pd.DataFrame, n: int = 14,
+                 sym: str = None, **kwargs):
+        super().__init__(df=df, sym=sym, ohlc=kwargs.pop("ohlc", OHLC(sym)),
+                         indicator_name=f"STOCH (n={n:.0f})", n=n, **kwargs)
+        self.n = n
+
+    def apply_indicator(self, df: pd.DataFrame, ohlc: OHLC, n: int = 14):
+        low = df[ohlc.low].rolling(n).min()
+        high = df[ohlc.high].rolling(n).max()
+        k = (df[ohlc.close] - low) / (high - low)
+        k.index = df.index if isinstance(df.index, pd.DatetimeIndex) else df["datetime"]
+        return k
+
+
+class STOCHF(DataFrameInSeriesOut):
+    """'Fast' Stochastic oscillator, also known as '%D' (just a simple moving
+    average of the slow stochastic_oscillator) see:
+        https://www.investopedia.com/terms/s/stochasticoscillator.asp
+    """
+
+    parameters = {"n": MA_TYPICAL_N}
+
+    def __init__(self, df: pd.DataFrame, n: int = 3,
+                 k_n: int = 14, sym: str = None, **kwargs):
+        super().__init__(df=df, sym=sym, ohlc=kwargs.pop("ohlc", OHLC(sym)),
+                         indicator_name=f"STOCHF (n={n:.0f}, k_n={k_n:.0f})", n=n, k_n=k_n, **kwargs)
+        self.n = n
+        self.k_n = k_n
+
+    def apply_indicator(self, df: pd.DataFrame, ohlc: OHLC, n: int = 3,
+                        k_n: int = 14):
+        k = STOCH(df=df, n=k_n, ohlc=ohlc)
+        return SMA(k, n=n, validate=False, as_percent_diff=False)
+
+

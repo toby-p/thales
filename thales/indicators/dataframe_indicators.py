@@ -4,8 +4,6 @@ multiple columns of price data (e.g. high & low) with a DateTime index."""
 import numpy as np
 import pandas as pd
 
-from thales.indicators.series_indicators import SMA
-
 
 def typical_price(df: pd.DataFrame) -> pd.Series:
     """Add the `typical price` average of low, high and open prices. Assumes
@@ -14,31 +12,6 @@ def typical_price(df: pd.DataFrame) -> pd.Series:
         return pd.Series(df[["low", "high", "open"]].sum(axis=1) / 3, name="typical")
     else:
         return pd.Series(df.set_index("datetime")[["low", "high", "open"]].sum(axis=1) / 3, name="typical")
-
-
-def slow_stochastic_oscillator(df: pd.DataFrame, n: int = 14) -> pd.Series:
-    """'Slow' Stochastic oscillator, also known as '%K' see:
-        https://www.investopedia.com/terms/s/stochasticoscillator.asp
-    """
-    if isinstance(df.index, pd.DatetimeIndex):
-        df = df.sort_index(ascending=True)
-    else:
-        df = df.sort_values(by="datetime", ascending=True)
-    low = df["low"].rolling(n).min()
-    high = df["high"].rolling(n).max()
-    k = (df["close"] - low) / (high - low)
-    k.index = df.index if isinstance(df.index, pd.DatetimeIndex) else df["datetime"]
-    return k.rename(f"stoch (n={n})")
-
-
-def fast_stochastic_oscillator(df: pd.DataFrame, n: int = 3,
-                               k_n: int = 14) -> pd.Series:
-    """'Fast' Stochastic oscillator, also known as '%D' (just a simple moving
-    average of the slow stochastic_oscillator) see:
-        https://www.investopedia.com/terms/s/stochasticoscillator.asp
-    """
-    k = slow_stochastic_oscillator(df, n=k_n)
-    return SMA(k, n=n, validate=False).rename(f"stoch_f (n={n}, k_n={k_n})")
 
 
 def mesa_adaptive_moving_average(df: pd.DataFrame, fast_limit: float = 0.5,

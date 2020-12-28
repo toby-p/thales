@@ -12,7 +12,7 @@ from thales.config.exceptions import InvalidIndicator
 from thales.config.sources import validate_source
 from thales.config.utils import DEFAULT_SUBDIR
 from thales.data import CSVLoader
-from thales.indicators import all_indicators, apply_df_indicator, dataframe_indicators, series_indicators
+from thales.indicators import all_indicators, apply_df_indicator, dataframe_indicators
 from thales.indicators.base import SeriesInSeriesOut, SeriesInDfOut
 
 

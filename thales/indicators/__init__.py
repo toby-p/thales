@@ -1,6 +1,6 @@
 
 from thales.config.exceptions import InvalidIndicator
-from .series_indicators import *
+from .indicators import *
 from .dataframe_indicators import *
 
 # Dictionaries of all available indicators. Where they are included in their
@@ -9,7 +9,7 @@ from .dataframe_indicators import *
 # This means those technical indicator endpoints don't need to be queried, since
 # they can be calculated directly from the raw price data.
 
-series_indicators = {
+all_indicators = {
     "sma": SMA,
     "ema": EMA,
     "wma": WMA,
@@ -20,34 +20,15 @@ series_indicators = {
     "kama": KAMA,
     "macd": MACD,
     "rsi": RSI,
+    "stoch": STOCH,
+    "stochf": STOCHF,
 }
 
 
 dataframe_indicators = {
     "tp": typical_price,
     "mama": mesa_adaptive_moving_average,
-    "stoch": slow_stochastic_oscillator,
-    "stochf": fast_stochastic_oscillator,
 }
-
-all_indicators = {**series_indicators, **dataframe_indicators}
-
-
-def apply_series_indicator(df: pd.DataFrame, indicator: str,
-                           target: str = "close", **kwargs):
-    """Apply technical indicators in-place to a DataFrame of raw data, based on
-    the `target` column series."""
-    try:
-        func = series_indicators[indicator]
-    except KeyError:
-        raise InvalidIndicator(indicator)
-    i = func(s=df[target], **kwargs)
-    if isinstance(i, pd.Series):
-        df[i.name] = i
-    elif isinstance(i, pd.DataFrame):
-        for col in i.columns:
-            s = i[col]
-            df[s.name] = s
 
 
 def apply_df_indicator(df: pd.DataFrame, indicator: str, **kwargs):
