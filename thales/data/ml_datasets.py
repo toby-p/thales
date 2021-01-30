@@ -33,7 +33,7 @@ class MLDataset:
         self.df = pd.DataFrame()
 
         # Attrs storing data for machine learning tasks:
-        self.ys = pd.DataFrame()
+        self.futures = pd.DataFrame()
         self.X = pd.DataFrame()
         self.y = pd.Series()
         self.train_X = pd.DataFrame()
@@ -44,32 +44,57 @@ class MLDataset:
         self.ml_data = dict()
         self.models = dict()
 
-    def _update_y_index(self):
+    def _update_future_index(self):
         """Reset the index of the `ys` attr to match that of the `df` attr."""
-        self.ys = self.ys.reindex(self.df.index)
+        self.futures = self.futures.reindex(self.df.index)
 
-    def create_y_future(self, sym: str, ohlct: str = "c", n: int = 1):
-        """Create a target `y` column which is simply an OHLCT price shifted `n`
+    def _future_shift(self, sym: str, ohlct: str = "c", n: int = 1):
+        """Create a future column which is simply an OHLCT price shifted `n`
         time periods (i.e. rows) into the future."""
+        self.load(sym, ohlct)
         df_col_name = self._make_column_name(sym, ohlct)
-        y_col_name = f"{df_col_name}_n+{n}"
-        if y_col_name not in self.ys.columns:
+        new_col_name = f"{df_col_name}_n+{n}"
+        if new_col_name not in self.futures.columns:
             src_series = self.df[df_col_name]
-            self._update_y_index()
-            self.ys[y_col_name] = src_series.shift(-n)
-        return y_col_name
+            self._update_future_index()
+            self.futures[new_col_name] = src_series.shift(-n)
+        return new_col_name
 
-    def create_y_pc(self, sym: str, ohlct: str = "c", n: int = 1):
-        """Create a target `y` column which is the percentage difference between
-        the current date's OHLCT price and the same OHLCT price shifted `n` time
+    def create_future_pc(self, sym: str, ohlct: str = "c", n: int = 1):
+        """Create a future column which is the percentage difference between the
+        current date's OHLCT price and the same OHLCT price shifted `n` time
         periods (i.e. rows) into the future."""
         df_col_name = self._make_column_name(sym, ohlct)
-        y_col_name = f"{df_col_name}_n+{n}_pc"
-        if y_col_name not in self.ys.columns:
-            n_ycol = self.create_y_future(sym=sym, ohlct=ohlct, n=n)
-            self._update_y_index()
-            self.ys[y_col_name] = (self.ys[n_ycol] - self.df[df_col_name]) / self.df[df_col_name]
-        return y_col_name
+        new_col_name = f"{df_col_name}_n+{n}_pc"
+        if new_col_name not in self.futures.columns:
+            future_col = self._future_shift(sym=sym, ohlct=ohlct, n=n)
+            self.futures[new_col_name] = (self.futures[future_col] - self.df[df_col_name]) / self.df[df_col_name]
+        return new_col_name
+
+    def _rolling_future(self, sym: str, ohlct: str = "l", n: int = 5,
+                        func: str = "min"):
+        """Create a column summarizing the price data for the next `n` days
+        after a date, e.g. giving mean/min/max of ohlc."""
+        self.load(sym, ohlct)
+        col_name = self._make_column_name(sym, ohlct)
+        new_col_name = f"{col_name}_future_{func}_n={n}"
+        if new_col_name in self.futures.columns:
+            return new_col_name
+        s = self.df[col_name]
+        rf = eval(f"s.rolling(n).{func}()")
+        self.futures[new_col_name] = rf.shift(-n)
+        self._update_future_index()
+        return new_col_name
+
+    def create_future_min(self, sym: str, ohlct: str = "l", n: int = 1):
+        """Create a future column giving the minimum of a price column over the
+        the next `n` days."""
+        return self._rolling_future(sym=sym, ohlct=ohlct, n=n, func="min")
+
+    def create_future_max(self, sym: str, ohlct: str = "l", n: int = 1):
+        """Create a future column giving the maximum of a price column over the
+        the next `n` days."""
+        return self._rolling_future(sym=sym, ohlct=ohlct, n=n, func="max")
 
     @staticmethod
     def full_column_name(*ohlct: str) -> list:
@@ -81,22 +106,23 @@ class MLDataset:
     def _make_column_name(self, sym: str, ohlct: str):
         return f"{sym.upper()}_{self.full_column_name(ohlct)[0]}"
 
-    def load(self, sym: str, *col):
+    def load(self, sym: str, *ohlct):
         """Add data into the `df` attribute.
 
         Args:
             sym: which symbol to load data for.
-            col: which columns to load from o/h/l/c.
+            ohlct: which columns to load from o/h/l/c.
         """
-        assert col, "Must pass at least 1 col arg."
-        cols_to_load = [s[0].lower() for s in col]
-        already_loaded = self._loaded.get(sym.upper(), list())
+        assert ohlct, "Must pass at least 1 ohlct arg."
+        sym = sym.upper()
+        cols_to_load = [s[0].lower() for s in ohlct]
+        already_loaded = self._loaded.get(sym, list())
         cols_to_load = sorted(set(cols_to_load) - set(already_loaded))
         if not cols_to_load:  # Nothing new to load:
             return
         df = CSVLoader.load_by_symbol(sym, src=self.src, subdir=self.subdir, precision=self.precision)
         df = df.set_index("datetime").sort_index()
-        df = df[self.full_column_name(*col)]
+        df = df[self.full_column_name(*ohlct)]
         df = df.rename(columns={c: f"{sym}_{c}" for c in df.columns})
         self.df = pd.merge(self.df, df, left_index=True, right_index=True, how="outer")
         self._loaded[sym.upper()] = sorted(set(already_loaded + cols_to_load))
@@ -154,10 +180,10 @@ class MLDataset:
             self.iterate_indicator_params(indicator, sym, ohlct)
 
     def choose_y(self, y_col: str):
-        """Choose a column from the `ys` attribute to be the target feature, and
-        set the indices of the `X` and `y` attributes to only include notna rows
-        in both."""
-        y: pd.Series = self.ys[y_col].dropna()
+        """Choose a column from the `futures` attribute to be the target for
+        learning, and set the indices of the `X` and `y` attributes to only
+        include notna rows in both."""
+        y: pd.Series = self.futures[y_col].dropna()
         self.X = self.df.loc[y.index].dropna()
         self.y = y.loc[self.X.index]
 
@@ -195,6 +221,15 @@ class MLDataset:
         if plot_price:
             ax.plot(self.df[col].iloc[-n_recent:], label=col)
         ax.legend()
+        return fig
+
+    def plot_percent_change_hist(self, sym: str, n: int = 1, bins: int = 200,
+                                 figsize: tuple = (10, 8), ohlct: str = "c"):
+        """Plot a histogram of the percent change between a symbol's price on a
+        date vs. the price `n` days into the future."""
+        col_name = self.create_future_pc(sym=sym, ohlct=ohlct, n=n)
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.hist(self.futures[col_name], bins=bins)
         return fig
 
 
